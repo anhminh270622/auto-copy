@@ -1,0 +1,199 @@
+import { useEffect, useState } from "react";
+import "./App.css"
+import { toast, ToastContainer } from "react-toastify";
+import 'react-toastify/dist/ReactToastify.css';
+
+export default function App() {
+    const [title, setTitle] = useState("");
+    const [editDescription, setEditDescription] = useState(false);
+    const [editRequest, setEditRequest] = useState(false);
+
+    const [request, setRequest] = useState("Viết bài viết");
+    const [content, setContent] = useState("");
+    const [autoCopy, setAutoCopy] = useState(true);
+    const [combined, setCombined] = useState("");
+    const [description, setDescription] = useState("không viết liền không tách dòng")
+    const [lastState, setLastState] = useState(null);
+    const [showUndo, setShowUndo] = useState(false);
+
+    useEffect(() => {
+        const saved = JSON.parse(localStorage.getItem("myAppData") || "{}");
+        if (saved) {
+            setTitle(saved.title || "");
+            setContent(saved.content || "");
+            setRequest(saved.request || "Viết bài viết");
+            setDescription(saved.description || "không viết liền không tách dòng");
+        }
+    }, []);
+
+    useEffect(() => {
+        if (title && content) {
+            const processedContent = content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1");
+            const text = `${request} "${title}" ${description} \n ${processedContent}`;
+            setCombined(text);
+
+            if (autoCopy) {
+                navigator.clipboard.writeText(text)
+            }
+        }
+    }, [request, title, content, description, autoCopy]);
+
+    useEffect(() => {
+        localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description }));
+    }, [title, content, request, description]);
+
+    const onReset = () => {
+        setLastState({ title, content, request, description, autoCopy, combined });
+        setTitle("");
+        setContent("");
+        setCombined("")
+        setAutoCopy(true)
+        setShowUndo(true);
+        toast.info("Đã nhập lại. Bạn có thể hoàn tác !");
+    }
+
+    const onUndo = () => {
+        if (lastState) {
+            setTitle(lastState.title);
+            setContent(lastState.content);
+            setRequest(lastState.request);
+            setDescription(lastState.description);
+            setAutoCopy(lastState.autoCopy);
+            setCombined(lastState.combined);
+            setShowUndo(false);
+            toast.success("Đã hoàn tác thành công !");
+        }
+    }
+
+    return (
+        <>
+            <ToastContainer position="top-right" autoClose={2000} />
+            <div style={{ padding: 20, maxWidth: "70%", margin: "0 auto" }}>
+                <h2 style={{ textAlign: "center" }}>Tự động sao chép</h2>
+                <div style={{ display: "flex", gap: 20 }}>
+                    <div style={{ flex: 1 }}>
+                        <h3 className="title">✍️ Nhập thông tin:</h3>
+                        <div style={{ marginBottom: 10 }}>
+                            <strong>Viết yêu cầu</strong>
+                            {editRequest
+                                ? (
+                                    <div className="flex-between">
+                                        <textarea
+                                            rows={2}
+                                            value={request}
+                                            onChange={(e) => setRequest(e.target.value)}
+                                        />
+                                        <button className="btn-copy" onClick={() => {
+                                            setEditRequest(false)
+                                            toast.success("Chỉnh sửa thành công")
+                                        }
+
+
+                                        }>
+                                            💾 Lưu</button>
+                                    </div>
+                                ) : (
+                                    <div className="flex-between">
+                                        <p>{request}</p>
+                                        <button className="btn-edit" onClick={() => setEditRequest(true)}>✏️ Edit</button>
+                                    </div>
+                                )}
+                        </div>
+                        <label>
+                            <strong>Tiêu đề bài viết:</strong>
+                            <textarea
+                                rows={3}
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                style={{ minHeight: "60px" }}
+                                placeholder="Vui lòng nhập tiêu đề bài viết"
+                            />
+                        </label>
+                        <label>
+                            <strong>Nội dung:</strong>
+                            <textarea
+                                rows={5}
+                                value={content}
+                                onChange={(e) => setContent(e.target.value)}
+                                style={{ minHeight: "100px" }}
+                                placeholder="Vui lòng nhập nội dung bài viết"
+                            />
+                        </label>
+                        <div style={{ marginBottom: 10 }}>
+                            <strong>Mô tả yêu cầu</strong>
+                            {editDescription
+                                ? (
+                                    <div className="flex-between">
+                                        <textarea
+                                            maxWidth={100}
+                                            rows={2}
+                                            value={description}
+                                            onChange={(e) => setDescription(e.target.value)}
+                                        />
+                                        <button className="btn-copy" onClick={() => {
+                                            setEditDescription(false)
+                                            toast.success("Chỉnh sửa thành công")
+                                        }}>
+                                            💾 Lưu</button>
+                                    </div>
+                                ) : (
+                                    <div className="flex-between">
+                                        <p>{description}</p>
+                                        <button className="btn-edit" onClick={() => setEditDescription(true)}>✏️ Edit</button>
+                                    </div>
+                                )}
+                        </div>
+
+                        <div style={{ marginBottom: 10 }}>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    checked={autoCopy}
+                                    style={{ cursor: "pointer", fontSize: "20px" }}
+                                    onChange={() => {
+                                        setAutoCopy(!autoCopy);
+                                        if (autoCopy) {
+                                            toast.warning("Đã hủy tự động copy")
+                                        } else {
+                                            toast.success("Đã thêm tự động copy");
+                                        }
+                                    }}
+                                />{" "}
+                                Tự động copy
+                            </label>
+                        </div>
+
+                    </div>
+                    <div style={{ flex: 1, width: "100%" }}>
+                        <h3 className="title">📝 Kết quả gộp:</h3>
+                        <div
+                            className="result"
+                        >
+                            {combined || "Chưa có bản sao chép"}
+                        </div>
+                    </div>
+                </div>
+                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button
+                        disabled={!(title || content)}
+                        className={(title || content) ? "btn-delete" : "btn-disable"}
+                        onClick={onReset}>
+                        🔁 Nhập lại</button>
+                    <button
+                        className={!autoCopy ? "btn-copy" : "btn-disable"}
+                        disabled={autoCopy}
+                        onClick={() => {
+                            navigator.clipboard.writeText(combined)
+                            toast.success("Copy thành công !")
+                        }}>
+                        📋 Copy kết quả</button>
+                    {showUndo && (
+                        <button className="btn-edit" onClick={onUndo}>
+                            ⬅️ Hoàn tác
+                        </button>
+                    )}
+                </div>
+            </div>
+        </>
+    )
+}
