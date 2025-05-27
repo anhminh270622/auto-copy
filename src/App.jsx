@@ -69,7 +69,7 @@ export default function App() {
     return (
         <>
             <ToastContainer position="top-right" autoClose={2000} />
-            <div style={{ padding: 20, maxWidth: "70%", margin: "0 auto" }}>
+            <div style={{ padding: 20, maxWidth: "80%", margin: "0 auto" }}>
                 <h2 style={{ textAlign: "center" }}>Tự động sao chép</h2>
                 <div style={{ display: "flex", gap: 20 }}>
                     <div style={{ flex: 1 }}>
