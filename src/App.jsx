@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css"
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
+import CheckBox from "./components/checkbox/checkbox";
 
 export default function App() {
     const [title, setTitle] = useState("");
@@ -145,11 +146,9 @@ export default function App() {
                         </div>
 
                         <div style={{ marginBottom: 10 }}>
-                            <label>
-                                <input
-                                    type="checkbox"
+                            <label className="checkbox">
+                                <CheckBox
                                     checked={autoCopy}
-                                    style={{ cursor: "pointer", fontSize: "20px" }}
                                     onChange={() => {
                                         setAutoCopy(!autoCopy);
                                         if (autoCopy) {
@@ -158,7 +157,7 @@ export default function App() {
                                             toast.success("Đã thêm tự động copy");
                                         }
                                     }}
-                                />{" "}
+                                />
                                 Tự động copy
                             </label>
                         </div>
