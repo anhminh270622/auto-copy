@@ -200,14 +200,19 @@ export default function App() {
                         className={(title || content) ? "btn-delete" : "btn-disable"}
                         onClick={onReset}>
                         🔁 Nhập lại</button>
-                    <button
-                        className={!autoCopy ? "btn-copy" : "btn-disable"}
-                        disabled={autoCopy}
-                        onClick={() => {
-                            navigator.clipboard.writeText(combined)
-                            toast.success("Copy thành công !")
-                        }}>
-                        📋 Copy kết quả</button>
+                    {
+                        !autoCopy && (title && content) && (
+                            <button
+                                className={"btn-copy"}
+                                onClick={() => {
+                                    navigator.clipboard.writeText(combined)
+                                    toast.success("Copy thành công !")
+                                }}>
+                                📋 Copy kết quả
+                            </button>
+                        )
+                    }
+
                     {showUndo && (
                         <button className="btn-edit" onClick={onUndo}>
                             ⬅️ Hoàn tác
