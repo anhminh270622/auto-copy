@@ -5,6 +5,10 @@ import 'react-toastify/dist/ReactToastify.css';
 import CheckBox from "./components/checkbox/checkbox";
 
 export default function App() {
+    const [theme, setTheme] = useState(() => {
+        const savedTheme = localStorage.getItem('theme');
+        return savedTheme || 'dark';
+    });
     const [title, setTitle] = useState("");
     const [editDescription, setEditDescription] = useState(false);
     const [editRequest, setEditRequest] = useState(false);
@@ -43,6 +47,11 @@ export default function App() {
         localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description }));
     }, [title, content, request, description]);
 
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+
     const onReset = () => {
         setLastState({ title, content, request, description, autoCopy, combined });
         setTitle("");
@@ -66,13 +75,26 @@ export default function App() {
         }
     }
 
+    const toggleTheme = () => {
+        setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
+    };
+
     return (
         <>
             <ToastContainer position="top-right" autoClose={2000} />
             <div style={{ padding: 20, maxWidth: "80%", margin: "0 auto" }}>
-                <h2 style={{ textAlign: "center" }}>Tự động sao chép</h2>
+                <div className="header">
+                    <img src="/logo.png" alt="logo" />
+                    <h2 style={{ textAlign: "center", margin: 0 }}>Tự động sao chép</h2>
+                    <button
+                        className="btn-theme"
+                        onClick={toggleTheme}
+                    >
+                        {theme === 'dark' ? '☀️' : '🌙'}
+                    </button>
+                </div>
                 <div style={{ display: "flex", gap: 20 }}>
-                    <div style={{ flex: 1 }}>
+                    <div className="left">
                         <h3 className="title">✍️ Nhập thông tin:</h3>
                         <div style={{ marginBottom: 10 }}>
                             <strong>Viết yêu cầu</strong>
@@ -163,7 +185,7 @@ export default function App() {
                         </div>
 
                     </div>
-                    <div style={{ flex: 1, width: "100%" }}>
+                    <div className="right">
                         <h3 className="title">📝 Kết quả gộp:</h3>
                         <div
                             className="result"
