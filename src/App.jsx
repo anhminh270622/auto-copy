@@ -82,7 +82,7 @@ export default function App() {
     return (
         <>
             <ToastContainer position="top-right" autoClose={2000} />
-            <div style={{ padding: 20, maxWidth: "80%", margin: "0 auto" }}>
+            <div className="app-container">
                 <div className="header">
                     <img src="/logo.png" alt="logo" />
                     <h2 style={{ textAlign: "center", margin: 0 }}>Tự động sao chép</h2>
@@ -93,7 +93,7 @@ export default function App() {
                         {theme === 'dark' ? '☀️' : '🌙'}
                     </button>
                 </div>
-                <div style={{ display: "flex", gap: 20 }}>
+                <div className="app-main-row">
                     <div className="left">
                         <h3 className="title">✍️ Nhập thông tin:</h3>
                         <div style={{ marginBottom: 10 }}>
@@ -108,10 +108,8 @@ export default function App() {
                                         />
                                         <button className="btn-copy" onClick={() => {
                                             setEditRequest(false)
-                                            toast.success("Chỉnh sửa thành công")
+                                            toast.success("Chỉnh sửa yêu cầu thành công")
                                         }
-
-
                                         }>
                                             💾 Lưu</button>
                                     </div>
@@ -155,7 +153,7 @@ export default function App() {
                                         />
                                         <button className="btn-copy" onClick={() => {
                                             setEditDescription(false)
-                                            toast.success("Chỉnh sửa thành công")
+                                            toast.success("Chỉnh sửa mô tả thành công")
                                         }}>
                                             💾 Lưu</button>
                                     </div>
@@ -174,13 +172,13 @@ export default function App() {
                                     onChange={() => {
                                         setAutoCopy(!autoCopy);
                                         if (autoCopy) {
-                                            toast.warning("Đã hủy tự động copy")
+                                            toast.warning("Đã tắt tự động sao chép")
                                         } else {
-                                            toast.success("Đã thêm tự động copy");
+                                            toast.success("Đã bật tự động sao chép");
                                         }
                                     }}
                                 />
-                                Tự động copy
+                                Tự động sao chép khi nhập đủ thông tin
                             </label>
                         </div>
 
@@ -190,7 +188,7 @@ export default function App() {
                         <div
                             className="result"
                         >
-                            {combined || "Chưa có bản sao chép"}
+                            {combined || "📭 Chưa có nội dung nào được tạo. Vui lòng nhập thông tin bên trái."}
                         </div>
                     </div>
                 </div>
