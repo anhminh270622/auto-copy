@@ -260,6 +260,7 @@ label strong {
     padding: 10px;
     box-shadow: 0 4px 24px var(--shadow-color);
     margin-top: 30px;
+    border-radius: 8px;
 }
 
 /* Responsive */
