@@ -3,7 +3,7 @@ import "./style.css";
 
 const CheckBox = ({ checked = true, onChange }) => {
     return (
-        <label className="container">
+        <label className="checkbox-container">
             <input type="checkbox" checked={checked} onChange={onChange} />
             <div className={`checkmark ${checked ? 'checked' : ''}`}></div>
         </label>

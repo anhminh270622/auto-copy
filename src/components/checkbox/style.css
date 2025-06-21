@@ -1,6 +1,6 @@
 /* From Uiverse.io by elijahgummer */ 
 /* Hide the default checkbox */
-.container input {
+.checkbox-container input {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -11,7 +11,7 @@
     width: 0;
 }
   
-.container {
+.checkbox-container {
     display: block;
     position: relative;
     cursor: pointer;

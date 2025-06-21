@@ -3,6 +3,7 @@ import "./App.css"
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import CheckBox from "./components/checkbox/checkbox";
+import DownloadYtb from "./components/downloadYtb/downloadYtb.jsx";
 
 export default function App() {
     const [theme, setTheme] = useState(() => {
@@ -81,10 +82,10 @@ export default function App() {
 
     return (
         <>
-            <ToastContainer position="top-right" autoClose={2000} />
+            <ToastContainer position="top-right" autoClose={2000}/>
             <div className="app-container">
                 <div className="header">
-                    <img src="/logo.png" alt="logo" />
+                    <img src="/logo.png" alt="logo"/>
                     <h2 style={{ textAlign: "center", margin: 0 }}>Tự động sao chép</h2>
                     <button
                         className="btn-theme"
@@ -111,12 +112,14 @@ export default function App() {
                                             toast.success("Chỉnh sửa yêu cầu thành công")
                                         }
                                         }>
-                                            💾 Lưu</button>
+                                            💾 Lưu
+                                        </button>
                                     </div>
                                 ) : (
                                     <div className="flex-between">
                                         <p>{request}</p>
-                                        <button className="btn-edit" onClick={() => setEditRequest(true)}>✏️ Edit</button>
+                                        <button className="btn-edit" onClick={() => setEditRequest(true)}>✏️ Edit
+                                        </button>
                                     </div>
                                 )}
                         </div>
@@ -155,12 +158,14 @@ export default function App() {
                                             setEditDescription(false)
                                             toast.success("Chỉnh sửa mô tả thành công")
                                         }}>
-                                            💾 Lưu</button>
+                                            💾 Lưu
+                                        </button>
                                     </div>
                                 ) : (
                                     <div className="flex-between">
                                         <p>{description}</p>
-                                        <button className="btn-edit" onClick={() => setEditDescription(true)}>✏️ Edit</button>
+                                        <button className="btn-edit" onClick={() => setEditDescription(true)}>✏️ Edit
+                                        </button>
                                     </div>
                                 )}
                         </div>
@@ -192,12 +197,13 @@ export default function App() {
                         </div>
                     </div>
                 </div>
-                <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <div style={{ marginTop: 10, marginBottom: 10, display: "flex", justifyContent: "flex-end", gap: 10 }}>
                     <button
                         disabled={!(title || content)}
                         className={(title || content) ? "btn-delete" : "btn-disable"}
                         onClick={onReset}>
-                        🔁 Nhập lại</button>
+                        🔁 Nhập lại
+                    </button>
                     {
                         !autoCopy && (title && content) && (
                             <button
@@ -217,7 +223,12 @@ export default function App() {
                         </button>
                     )}
                 </div>
+                <hr/>
+                <div className="downloadYtb">
+                    <DownloadYtb/>
+                </div>
             </div>
+
         </>
     )
 }

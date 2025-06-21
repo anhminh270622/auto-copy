@@ -1,0 +1,59 @@
+.downloadYtb-container {
+    max-width: 100% !important;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.downloadYtb-container .form-input {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.downloadYtb-container .form-input button {
+    margin-bottom: 0;
+}
+
+.downloadYtb-container input {
+    width: 80%;
+    margin: 10px 0;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 10px;
+    font-size: 1rem;
+}
+
+.form-input input:focus-visible {
+    border: 1.5px solid var(--btn-copy);
+    outline: none;
+}
+
+.button {
+    padding: 8px 16px;
+    margin-bottom: 20px;
+    color: #fff;
+    background-color: #28a745;
+    border: none;
+    cursor: pointer;
+}
+
+.thumbnail-preview {
+    margin-top: 10px;
+}
+
+.thumbnail-image {
+    width: 90% !important;
+    max-width: none;
+    height: auto;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+}
+
+.error {
+    color: red;
+    margin-top: 10px;
+}
