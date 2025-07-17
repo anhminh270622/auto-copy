@@ -22,7 +22,11 @@ const YoutubeThumbnail = () => {
     const getThumbnail = async () => {
         await getThumbnailByURL(youtubeURL);
     };
-
+    const onReset = () => {
+        setYoutubeURL('');
+        setThumbnailUrl('');
+        setError('');
+    }
     const getThumbnailByURL = async (url) => {
         setError('');
         setThumbnailUrl('');
@@ -53,21 +57,30 @@ const YoutubeThumbnail = () => {
 
     return (
         <div className="downloadYtb-container">
-            <h2>Ảnh chụp màn hình từ video YouTube</h2>
+            <h2 style={{ textAlign: "left" }}>Ảnh chụp màn hình từ video YouTube</h2>
             <div className="form-input">
                 <input
-                    onChange={(e) => setYoutubeURL(e.target.value)}
+                    onChange={(e) => {
+                        setError('');
+                        setYoutubeURL(e.target.value)
+                    }
+                    }
                     value={youtubeURL}
                     placeholder="Paste link YouTube tại đây"
                     className="input"
                     onPaste={handlePaste}
                 />
-                <button onClick={getThumbnail} className="button">Nhận hình ảnh</button>
+                <button
+                    onClick={thumbnailUrl ? onReset : getThumbnail}
+                    className={`button ${thumbnailUrl ? 'button-secondary' : ''}`}
+                >
+                    {thumbnailUrl ? '🔁 Nhập lại' : 'Nhận ảnh'}
+                </button>
             </div>
             {thumbnailUrl && (
                 <div className="thumbnailPreview">
                     <h3>Kết quả ảnh tốt nhất:</h3>
-                    <img src={thumbnailUrl} alt="Hình thu nhỏ YouTube" className="thumbnail-image"/>
+                    <img src={thumbnailUrl} alt="Hình thu nhỏ YouTube" className="thumbnail-image" />
                 </div>
             )}
 

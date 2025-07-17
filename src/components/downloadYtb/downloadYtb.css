@@ -7,14 +7,12 @@
 .downloadYtb-container .form-input {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 20px;
+    justify-content: space-between;
 }
 
 .downloadYtb-container .form-input button {
     margin-bottom: 0;
 }
-
 .downloadYtb-container input {
     width: 80%;
     margin: 10px 0;
@@ -40,7 +38,12 @@
     border: none;
     cursor: pointer;
 }
-
+.button-secondary{
+    background: var(--bg-primary) !important;
+    cursor: pointer;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
 .thumbnail-preview {
     margin-top: 10px;
 }

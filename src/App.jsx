@@ -4,6 +4,7 @@ import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import CheckBox from "./components/checkbox/checkbox";
 import DownloadYtb from "./components/downloadYtb/downloadYtb.jsx";
+import ImageToVideoConverter from "./components/imgToVideoConvert/ImgToVideoConvert.jsx";
 
 export default function App() {
     const [theme, setTheme] = useState(() => {
@@ -82,10 +83,10 @@ export default function App() {
 
     return (
         <>
-            <ToastContainer position="top-right" autoClose={2000}/>
+            <ToastContainer position="top-right" autoClose={2000} />
             <div className="app-container">
                 <div className="header">
-                    <img src="/logo.png" alt="logo"/>
+                    <img src="/logo.png" alt="logo" />
                     <h2 style={{ textAlign: "center", margin: 0 }}>Tự động sao chép</h2>
                     <button
                         className="btn-theme"
@@ -223,9 +224,13 @@ export default function App() {
                         </button>
                     )}
                 </div>
-                <hr/>
+                <hr />
                 <div className="downloadYtb">
-                    <DownloadYtb/>
+                    <DownloadYtb />
+                </div>
+                <hr />
+                <div className="downloadYtb">
+                    <ImageToVideoConverter />
                 </div>
             </div>
 

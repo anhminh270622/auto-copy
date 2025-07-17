@@ -1,0 +1,176 @@
+.container-converter {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.card {
+    width: 100%;
+    border-radius: 12px;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.title {
+    text-align: left;
+}
+
+.subtitle {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.95rem;
+}
+
+.upload-label {
+    text-align: center;
+}
+
+.select-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 5px;
+    gap: 0.5rem;
+}
+
+.select-wrapper label {
+    font-weight: 500;
+
+}
+
+.select-wrapper select {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    background-color: var(--bg-tertiary);
+    font-size: 1rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.upload-btn {
+    padding: 8px 16px;
+    color: white;
+    font-weight: bold;
+    background: var(--btn-copy);
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
+}
+
+.btn-disable {
+    background: var(--bg-primary);
+    cursor: pointer;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.upload-btn:hover {
+    background: var(--btn-copy-hover);
+}
+
+.upload-btn.disabled {
+    background: var(--bg-primary);
+    cursor: not-allowed;
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin: 1.2rem 0;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--btn-edit);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.hidden {
+    display: none;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Lỗi */
+.error {
+    background-color: #7f1d1d;
+    color: #fca5a5;
+    padding: 0.8rem;
+    border-radius: 8px;
+    text-align: center;
+    margin: 1rem 0;
+    font-size: 0.95rem;
+    border: 1px solid #b91c1c;
+}
+
+/* Kết quả */
+.result-convert {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--bg-secondary);
+    padding: 1.5rem;
+    border-radius: 10px;
+    text-align: center;
+    margin: 0 auto;
+    animation: fadeIn 0.3s ease-in-out;
+
+}
+
+.success-title {
+    color: var(--btn-copy);
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.video-preview {
+    width: 50%;
+    max-width: 300px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+
+/* Nút tải */
+.download-btn {
+    background-color: var(--btn-copy);
+    color: var(--text-primary);
+    font-weight: bold;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+}
+
+.download-btn:hover {
+    background-color: var(--btn-copy-hover);
+    color: var(--text-primary);
+}
+
+/* Hiệu ứng fadeIn */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
