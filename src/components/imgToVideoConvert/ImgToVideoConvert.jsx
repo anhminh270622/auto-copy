@@ -180,14 +180,16 @@ const ImageToVideoConverter = () => {
                         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
                             <button
                                 disabled={!videoUrl && !processing}
-                                className={!videoUrl && !processing ? "btn-disable" : ""}
+                                className={"button-secondary"}
                                 onClick={onReset}>
                                 🔁 {processing ? 'Hủy' : 'Nhập lại'}
                             </button>
-                            <label htmlFor="image-upload"
-                                   className={`upload-btn ${processing ? 'disabled' : ''}`}>
-                                {processing ? 'Đang xử lý...' : 'Chọn Ảnh'}
-                            </label>
+                            {!processing && (
+                                <label htmlFor="image-upload"
+                                       className={`upload-btn ${processing ? 'disabled' : ''}`}>
+                                    {processing ? 'Đang xử lý...' : 'Chọn Ảnh'}
+                                </label>
+                            )}
                         </div>
                         <input
                             id="image-upload"
@@ -221,10 +223,10 @@ const ImageToVideoConverter = () => {
                         />
                         <a
                             href={videoUrl}
-                            download={`static_video.${videoExtension}`}
+                            download={`minh.${videoExtension}`}
                             className="download-btn"
                         >
-                            Tải Video (.{videoExtension})
+                            Tải Video (minh.{videoExtension})
                         </a>
                     </div>
                 )}

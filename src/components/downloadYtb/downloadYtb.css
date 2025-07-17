@@ -39,7 +39,7 @@
     cursor: pointer;
 }
 .button-secondary{
-    background: var(--bg-primary) !important;
+    background: var(--bg-primary);
     cursor: pointer;
     color: var(--text-primary);
     border: 1px solid var(--border-color);
