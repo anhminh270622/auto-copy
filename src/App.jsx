@@ -7,47 +7,59 @@ import DownloadYtb from "./components/downloadYtb/downloadYtb.jsx";
 import ImageToVideoConverter from "./components/imgToVideoConvert/ImgToVideoConvert.jsx";
 
 export default function App() {
+    // Load saved data once
+    const getSavedData = () => {
+        const saved = JSON.parse(localStorage.getItem("myAppData") || "{}");
+        return {
+            title: saved.title || "",
+            content: saved.content || "",
+            request: saved.request || "Viết bài viết",
+            description: saved.description || "không viết liền không tách dòng",
+            combined: saved.combined || "",
+            copyNoDescription: saved.copyNoDescription || ""
+        };
+    };
+
     const [theme, setTheme] = useState(() => {
         const savedTheme = localStorage.getItem('theme');
-        return savedTheme || 'dark';
+        return savedTheme || 'light';
     });
-    const [title, setTitle] = useState("");
+
     const [editDescription, setEditDescription] = useState(false);
     const [editRequest, setEditRequest] = useState(false);
-
-    const [request, setRequest] = useState("Viết bài viết");
-    const [content, setContent] = useState("");
     const [autoCopy, setAutoCopy] = useState(true);
-    const [combined, setCombined] = useState("");
-    const [description, setDescription] = useState("không viết liền không tách dòng")
     const [lastState, setLastState] = useState(null);
     const [showUndo, setShowUndo] = useState(false);
 
-    useEffect(() => {
-        const saved = JSON.parse(localStorage.getItem("myAppData") || "{}");
-        if (saved) {
-            setTitle(saved.title || "");
-            setContent(saved.content || "");
-            setRequest(saved.request || "Viết bài viết");
-            setDescription(saved.description || "không viết liền không tách dòng");
-        }
-    }, []);
+    // Initialize states with saved data
+    const savedData = getSavedData();
+    const [title, setTitle] = useState(savedData.title);
+    const [content, setContent] = useState(savedData.content);
+    const [request, setRequest] = useState(savedData.request);
+    const [description, setDescription] = useState(savedData.description);
+    const [combined, setCombined] = useState(savedData.combined);
+    const [copyNoDescription, setCopyNoDescription] = useState(savedData.copyNoDescription);
+
 
     useEffect(() => {
-        if (title && content) {
-            const processedContent = content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1");
+        if (title) {
+            const processedContent = content ? content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1") : "";
             const text = `${request} "${title}" ${description} \n ${processedContent}`;
+            const textNoDescription = `${request} "${title}"`;
             setCombined(text);
-
+            setCopyNoDescription(textNoDescription);
             if (autoCopy) {
                 navigator.clipboard.writeText(text)
             }
+        } else {
+            setCombined("");
+            setCopyNoDescription("");
         }
     }, [request, title, content, description, autoCopy]);
 
     useEffect(() => {
-        localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description }));
-    }, [title, content, request, description]);
+        localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description, copyNoDescription }));
+    }, [title, content, request, description, copyNoDescription]);
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -55,10 +67,11 @@ export default function App() {
     }, [theme]);
 
     const onReset = () => {
-        setLastState({ title, content, request, description, autoCopy, combined });
+        setLastState({ title, content, request, description, autoCopy, combined, copyNoDescription });
         setTitle("");
         setContent("");
         setCombined("")
+        setCopyNoDescription("")
         setAutoCopy(true)
         setShowUndo(true);
         toast.info("Đã nhập lại. Bạn có thể hoàn tác !");
@@ -70,6 +83,7 @@ export default function App() {
             setContent(lastState.content);
             setRequest(lastState.request);
             setDescription(lastState.description);
+            setCopyNoDescription(lastState.copyNoDescription);
             setAutoCopy(lastState.autoCopy);
             setCombined(lastState.combined);
             setShowUndo(false);
@@ -191,11 +205,37 @@ export default function App() {
                     </div>
                     <div className="right">
                         <h3 className="title">📝 Kết quả gộp:</h3>
-                        <div
-                            className="result"
-                        >
-                            {combined || "📭 Chưa có nội dung nào được tạo. Vui lòng nhập thông tin bên trái."}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div> <strong>Có đẩy đủ:</strong></div>
+                            <div className="result">
+                                <button
+                                    className={`copy-icon-btn ${combined ? 'active' : ''}`}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(combined);
+                                        toast.success("Copy thành công!");
+                                    }}
+                                    title="Copy nội dung"
+                                >
+                                    📄
+                                </button>
+                                {combined || "📭 Chưa có nội dung nào được tạo. Vui lòng nhập thông tin bên trái."}
+                            </div>
+                            <div> <strong>Không nội dung & mô tả:</strong></div>
+                            <div className="result">
+                                <button
+                                    className={`copy-icon-btn ${copyNoDescription ? 'active' : ''}`}
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(copyNoDescription);
+                                        toast.success("Copy thành công!");
+                                    }}
+                                    title="Copy nội dung"
+                                >
+                                    📄
+                                </button>
+                                {copyNoDescription || "📭 Chưa có nội dung nào được tạo. Vui lòng nhập thông tin bên trái."}
+                            </div>
                         </div>
+
                     </div>
                 </div>
                 <div style={{ marginTop: 10, marginBottom: 10, display: "flex", justifyContent: "flex-end", gap: 10 }}>
