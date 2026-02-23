@@ -14,7 +14,6 @@
     --btn-edit-hover: #0ea5e9;
 }
 
-/* Default light theme */
 :root {
     --bg-primary: #ffffff;
     --bg-secondary: #f5f5f5;
@@ -58,36 +57,66 @@ body,
     background: var(--bg-primary);
     font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
     color: var(--text-primary);
-    min-height: 80vh;
+    min-height: 100vh;
 }
 
 #root {
-    margin: 0 auto;
-    margin: 2rem;
+    margin: 0;
     width: 100%;
 }
 
-.app-container {
-    padding: 20px;
-    max-width: 80%;
+/* ===== Layout ===== */
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding-top: 16px;
+}
+
+.content-wrapper {
+    padding: 16px 20px;
+    flex: 1;
+    max-width: 90%;
+    width: 100%;
     margin: 0 auto;
 }
 
+.mobile-header {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.mobile-menu-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 1.4rem;
+    padding: 4px 12px;
+    min-width: auto;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.mobile-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* ===== Auto Copy Feature ===== */
 .app-main-row {
     display: flex;
     gap: 20px;
     justify-content: space-between;
-}
-
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding: 5px 10px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 20px 50px rgba(8, 112, 184, 0.7);
-    border-radius: 8px;
 }
 
 .right, .left {
@@ -99,6 +128,7 @@ body,
     min-width: 20%;
 }
 
+/* ===== Buttons ===== */
 button {
     padding: 8px 18px;
     border: none;
@@ -107,23 +137,6 @@ button {
     cursor: pointer;
     transition: background 0.2s, transform 0.2s;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.app-container .header img {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-}
-
-
-.checkbox {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-p {
-    margin: 0;
 }
 
 button {
@@ -179,6 +192,17 @@ button:active {
     background: var(--bg-secondary);
 }
 
+/* ===== Utilities ===== */
+.checkbox {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+p {
+    margin: 0;
+}
+
 .flex-between {
     display: flex;
     align-items: center;
@@ -207,6 +231,7 @@ button:active {
     min-width: 0px;
 }
 
+/* ===== Form Elements ===== */
 textarea,
 input[type="text"] {
     border-radius: 8px;
@@ -251,36 +276,7 @@ label strong {
     color: var(--text-secondary);
 }
 
-/* Card style for main content */
-.app-card {
-    background: var(--bg-secondary);
-    border-radius: 16px;
-    box-shadow: 0 4px 24px var(--shadow-color);
-    padding: 32px 24px;
-    margin-bottom: 24px;
-}
-
-/* Kết quả gộp */
-.result-box {
-    background: var(--bg-secondary);
-    padding: 16px;
-    border-radius: 8px;
-    white-space: pre-wrap;
-    font-size: 1rem;
-    max-height: 70vh;
-    overflow: auto;
-    margin-top: 8px;
-    border: 1px solid var(--border-color);
-}
-
-.downloadYtb {
-    padding: 10px;
-    box-shadow: 0 4px 24px var(--shadow-color);
-    margin-top: 30px;
-    border-radius: 8px;
-}
-
-/* Copy icon button styles */
+/* ===== Copy Icon Button ===== */
 .copy-icon-btn {
     position: sticky;
     top: 8px;
@@ -322,13 +318,20 @@ label strong {
     border: none;
 }
 
-/* Remove outline for all buttons */
 button:focus,
 button:active {
     outline: none;
 }
 
-/* Custom scrollbar theo theme cho tất cả elements */
+/* ===== Component Wrappers ===== */
+.downloadYtb {
+    padding: 10px;
+    box-shadow: 0 4px 24px var(--shadow-color);
+    margin-top: 30px;
+    border-radius: 8px;
+}
+
+/* ===== Scrollbar ===== */
 *::-webkit-scrollbar {
     width: 8px;
 }
@@ -347,26 +350,23 @@ button:active {
     background: var(--text-primary);
 }
 
-/* Firefox scrollbar cho tất cả elements */
 * {
     scrollbar-width: thin;
     scrollbar-color: var(--text-secondary) var(--bg-secondary);
 }
 
-/* Responsive */
-@media (max-width: 800px) {
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .mobile-header {
+        display: flex;
+    }
+
+    .content-wrapper {
+        padding: 16px;
+    }
+
     .app-main-row {
         flex-direction: column;
         gap: 24px;
     }
-
-    .app-container {
-        max-width: 80%;
-        padding: 0;
-    }
-
-    .header {
-        width: 100%;
-    }
 }
-
