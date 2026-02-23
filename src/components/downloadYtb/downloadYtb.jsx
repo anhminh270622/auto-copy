@@ -57,7 +57,7 @@ const YoutubeThumbnail = () => {
 
     return (
         <div className="downloadYtb-container">
-            <h2 style={{ textAlign: "left" }}>Ảnh chụp màn hình từ video YouTube</h2>
+            <h2 style={{ textAlign: "left" }}>Ảnh thumbnail từ video YouTube</h2>
             <div className="form-input">
                 <input
                     onChange={(e) => {
@@ -74,12 +74,12 @@ const YoutubeThumbnail = () => {
                     onClick={thumbnailUrl ? onReset : getThumbnail}
                     className={`button ${thumbnailUrl ? 'button-secondary' : ''}`}
                 >
-                    {thumbnailUrl ? '🔁 Nhập lại' : 'Nhận ảnh'}
+                    {thumbnailUrl ? '🔁 Nhập lại' : 'Nhận ảnh thumbnail'}
                 </button>
             </div>
             {thumbnailUrl && (
                 <div className="thumbnailPreview">
-                    <h3>Kết quả ảnh tốt nhất:</h3>
+                    <h3>Kết quả ảnh thumbnail tốt nhất:</h3>
                     <img src={thumbnailUrl} alt="Hình thu nhỏ YouTube" className="thumbnail-image" />
                 </div>
             )}
