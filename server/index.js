@@ -73,6 +73,7 @@ function runYtDlpJson(videoId, cookieArgs) {
     const args = [
       `https://www.youtube.com/watch?v=${videoId}`,
       "-J",
+      "--ignore-config",
       "--no-warnings",
       "--no-check-certificates",
       "--force-ipv4",
@@ -180,7 +181,7 @@ app.get("/api/download-info", async (req, res) => {
       });
     }
     const isUnavailable =
-      /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
+      /video unavailable|private video|sign in|age-restricted|members-only|not available in your country/i.test(
         message,
       );
     return res.status(isUnavailable ? 422 : 500).json({
@@ -220,6 +221,7 @@ app.get("/api/download", async (req, res) => {
           selector,
           "-o",
           "-",
+          "--ignore-config",
           "--no-warnings",
           "--no-check-certificates",
           "--force-ipv4",
