@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import youtubedl from "youtube-dl-exec";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,6 +12,15 @@ app.use(
   cors({
     origin: true,
   }),
+);
+
+const isWin = process.platform === "win32";
+const ytDlpBin = join(
+  process.cwd(),
+  "node_modules",
+  "youtube-dl-exec",
+  "bin",
+  isWin ? "yt-dlp.exe" : "yt-dlp",
 );
 
 function formatBytes(bytes) {
@@ -43,6 +51,45 @@ async function getCookieArgs() {
   const cookiePath = join(tmpdir(), `yt-cookie-${Date.now()}.txt`);
   await writeFile(cookiePath, cookieString, "utf8");
   return { cookiePath, cookieArgs: ["--cookies", cookiePath] };
+}
+
+function runYtDlpJson(videoId, cookieArgs) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      `https://www.youtube.com/watch?v=${videoId}`,
+      "-J",
+      "--no-warnings",
+      "--no-check-certificates",
+      "--force-ipv4",
+      "--extractor-args",
+      "youtube:player_client=android,web",
+      ...cookieArgs,
+    ];
+
+    const child = spawn(ytDlpBin, args);
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on("data", (d) => {
+      stderr += d.toString();
+      if (stderr.length > 5000) stderr = stderr.slice(-5000);
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error("Failed to parse yt-dlp JSON output"));
+      }
+    });
+  });
 }
 
 function normalizeFormats(info) {
@@ -87,16 +134,8 @@ app.get("/api/download-info", async (req, res) => {
   }
 
   try {
-    const { cookiePath } = await getCookieArgs();
-    const info = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
-      dumpSingleJson: true,
-      noWarnings: true,
-      noCheckCertificates: true,
-      preferFreeFormats: true,
-      forceIpv4: true,
-      extractorArgs: "youtube:player_client=android,web",
-      ...(cookiePath ? { cookies: cookiePath } : {}),
-    });
+    const { cookieArgs } = await getCookieArgs();
+    const info = await runYtDlpJson(videoId, cookieArgs);
 
     const videoInfo = {
       title: info.title || "",
@@ -114,6 +153,7 @@ app.get("/api/download-info", async (req, res) => {
     });
   } catch (err) {
     const message = String(err?.message || "");
+    console.error("download-info error:", message);
     const isUnavailable =
       /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
         message,
