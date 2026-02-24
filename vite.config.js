@@ -39,12 +39,28 @@ function downloadPlugin() {
                         }
 
                         const youtubedl = (await import('youtube-dl-exec')).default
-                        const info = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
-                            dumpSingleJson: true,
-                            noWarnings: true,
-                            noCheckCertificates: true,
-                            preferFreeFormats: true,
-                        })
+                        let info
+                        try {
+                            info = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
+                                dumpSingleJson: true,
+                                noWarnings: true,
+                                noCheckCertificates: true,
+                                preferFreeFormats: true,
+                            })
+                        } catch (err) {
+                            const message = String(err?.message || '')
+                            const isUnavailable =
+                                /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(message)
+                            res.writeHead(isUnavailable ? 422 : 500, { 'Content-Type': 'application/json' })
+                            res.end(
+                                JSON.stringify({
+                                    error: isUnavailable
+                                        ? 'Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập).'
+                                        : 'Không thể lấy thông tin video từ YouTube.',
+                                }),
+                            )
+                            return
+                        }
 
                         const videoInfo = {
                             title: info.title || '',
@@ -115,6 +131,7 @@ function downloadPlugin() {
 
                         const child = spawn(ytDlpBin, args)
                         let headersSent = false
+                        let stderrOutput = ''
 
                         child.stdout.on('data', (chunk) => {
                             if (!headersSent) {
@@ -129,13 +146,25 @@ function downloadPlugin() {
 
                         child.stderr.on('data', (data) => {
                             const msg = data.toString()
+                            stderrOutput += msg
+                            if (stderrOutput.length > 4000) {
+                                stderrOutput = stderrOutput.slice(-4000)
+                            }
                             if (msg.includes('ERROR')) console.error('yt-dlp:', msg)
                         })
 
                         child.on('close', (code) => {
                             if (code !== 0 && !headersSent) {
-                                res.writeHead(500, { 'Content-Type': 'application/json' })
-                                res.end(JSON.stringify({ error: 'Download failed' }))
+                                const isUnavailable =
+                                    /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(stderrOutput)
+                                res.writeHead(isUnavailable ? 422 : 500, { 'Content-Type': 'application/json' })
+                                res.end(
+                                    JSON.stringify({
+                                        error: isUnavailable
+                                            ? 'Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập).'
+                                            : 'Download failed',
+                                    }),
+                                )
                             } else {
                                 res.end()
                             }

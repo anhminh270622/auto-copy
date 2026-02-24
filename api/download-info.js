@@ -150,12 +150,16 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("download-info error:", err);
-    res
-      .status(500)
-      .json({
-        error:
-          "Không thể lấy thông tin video. YouTube có thể đang chặn dải IP này.",
-      });
+    const message = String(err?.message || "");
+    const isUnavailable =
+      /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
+        message,
+      );
+    res.status(isUnavailable ? 422 : 500).json({
+      error: isUnavailable
+        ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
+        : "Không thể lấy thông tin video. YouTube có thể đang chặn dải IP này.",
+    });
   }
 }
 

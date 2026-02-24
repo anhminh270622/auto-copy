@@ -50,8 +50,9 @@ const DownloadVideo = () => {
             if (!res.data.formats?.length) {
                 setError(res.data.message || "Không tìm thấy định dạng tải về");
             }
-        } catch {
-            setError("Không thể lấy thông tin video. Hãy kiểm tra lại link.");
+        } catch (err) {
+            const apiError = err?.response?.data?.error || err?.response?.data?.message;
+            setError(apiError || "Không thể lấy thông tin video. Hãy kiểm tra lại link.");
         } finally {
             setLoading(false);
         }
