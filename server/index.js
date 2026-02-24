@@ -236,6 +236,7 @@ app.get("/api/download-info", async (req, res) => {
 
 app.get("/api/download", async (req, res) => {
   const { v: videoId, format_id: formatId, title, ext } = req.query;
+  const debug = req.query.debug === "1";
   if (!videoId || !formatId) {
     return res.status(400).json({ error: "Missing parameters" });
   }
@@ -254,7 +255,7 @@ app.get("/api/download", async (req, res) => {
     const sourceUrl = `https://www.youtube.com/watch?v=${videoId}`;
     let headersSent = false;
 
-    const runDownload = (selector) =>
+    const runDownload = (selector, useExtractorArgs = true) =>
       new Promise((resolve, reject) => {
         const args = [
           sourceUrl,
@@ -266,8 +267,7 @@ app.get("/api/download", async (req, res) => {
           "--no-warnings",
           "--no-check-certificates",
           "--force-ipv4",
-          "--extractor-args",
-          "youtube:player_client=android,web",
+          ...(useExtractorArgs ? ["--extractor-args", "youtube:player_client=android,web"] : []),
           ...cookieArgs,
         ];
         const child = spawn(ytdlpCommand, args);
@@ -304,15 +304,24 @@ app.get("/api/download", async (req, res) => {
         });
       });
 
-    const requestedSelector = String(formatId) === "auto" ? "best" : String(formatId);
-    let result = await runDownload(requestedSelector);
+    const isAuto = String(formatId) === "auto";
+    const requestedSelector = isAuto ? "best" : String(formatId);
+    const selectors = isAuto
+      ? [
+          requestedSelector,
+          "18/22/best[ext=mp4]/best",
+          "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best",
+        ]
+      : [requestedSelector];
+    const modes = [true, false];
+    let result = { ok: false, stderrOutput: "" };
 
-    if (!result.ok && !headersSent && /requested format is not available/i.test(result.stderrOutput)) {
-      const fallbackSelector =
-        fileExt === "m4a" || fileExt === "mp3"
-          ? "bestaudio[ext=m4a]/bestaudio"
-          : "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best";
-      result = await runDownload(fallbackSelector);
+    for (const selector of selectors) {
+      for (const useExtractorArgs of modes) {
+        result = await runDownload(selector, useExtractorArgs);
+        if (result.ok || headersSent) break;
+      }
+      if (result.ok || headersSent) break;
     }
 
     if (!result.ok && !headersSent) {
@@ -323,11 +332,16 @@ app.get("/api/download", async (req, res) => {
         error: isUnavailable
           ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
           : "Download failed",
+        ...(debug ? { detail: result.stderrOutput.slice(0, 800) } : {}),
       });
       return;
     }
-  } catch {
-    return res.status(500).json({ error: "Download failed" });
+  } catch (err) {
+    const message = String(err?.message || "");
+    return res.status(500).json({
+      error: "Download failed",
+      ...(debug ? { detail: message.slice(0, 800) } : {}),
+    });
   }
 });
 
