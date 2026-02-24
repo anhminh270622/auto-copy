@@ -101,6 +101,8 @@ async function getInfoViaYtDlp(videoId) {
     noWarnings: true,
     noCheckCertificates: true,
     preferFreeFormats: true,
+    forceIpv4: true,
+    extractorArgs: "youtube:player_client=android,web",
     ...(cookiePath ? { cookies: cookiePath } : {}),
   });
 

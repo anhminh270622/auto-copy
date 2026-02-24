@@ -55,6 +55,9 @@ async function streamViaYtDlp({ videoId, formatId, title, ext, res }) {
     "-",
     "--no-warnings",
     "--no-check-certificates",
+    "--force-ipv4",
+    "--extractor-args",
+    "youtube:player_client=android,web",
     ...cookieArgs,
   ];
 
