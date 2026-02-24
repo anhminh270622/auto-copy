@@ -47,7 +47,9 @@ const DownloadVideo = () => {
             const res = await axios.get(`/api/download-info?v=${id}`, { timeout: 30000 });
             setFormats(res.data.formats || []);
             setVideoInfo(res.data.info || null);
-            if (!res.data.formats?.length) setError("Không tìm thấy định dạng tải về");
+            if (!res.data.formats?.length) {
+                setError(res.data.message || "Không tìm thấy định dạng tải về");
+            }
         } catch {
             setError("Không thể lấy thông tin video. Hãy kiểm tra lại link.");
         } finally {

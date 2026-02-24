@@ -78,6 +78,7 @@ export default async function handler(req, res) {
   try {
     let info = null;
     let videoInfo = null;
+    let fromYouTubeStream = true;
 
     try {
       const ytResult = await getInfoWithFallback(videoId);
@@ -93,6 +94,7 @@ export default async function handler(req, res) {
     } catch (ytErr) {
       console.error("youtubei failed, fallback to noembed:", ytErr.message);
       videoInfo = await getNoembedInfo(videoId);
+      fromYouTubeStream = false;
     }
 
     const combined = (info?.streaming_data?.formats || []).map((f) => ({
@@ -136,21 +138,16 @@ export default async function handler(req, res) {
 
     const formats = [...combined, ...videoOnly, ...audioOnly];
 
-    const finalFormats =
-      formats.length > 0
-        ? formats
-        : [
-            {
-              format_id: "18",
-              quality: "360p",
-              ext: "mp4",
-              hasVideo: true,
-              hasAudio: true,
-              size: "N/A",
-            },
-          ];
+    const finalFormats = fromYouTubeStream ? formats : [];
 
-    res.status(200).json({ info: videoInfo, formats: finalFormats });
+    res.status(200).json({
+      info: videoInfo,
+      formats: finalFormats,
+      canDownload: fromYouTubeStream && finalFormats.length > 0,
+      message: fromYouTubeStream
+        ? undefined
+        : "Video này YouTube không cho truy cập stream từ server hiện tại, nên chưa thể tải.",
+    });
   } catch (err) {
     console.error("download-info error:", err);
     res
