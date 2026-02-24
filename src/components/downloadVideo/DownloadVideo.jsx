@@ -3,6 +3,8 @@ import axios from "axios";
 import { MdDownload, MdClose, MdLink, MdContentPaste } from "react-icons/md";
 import './DownloadVideo.css';
 
+const API_BASE = (import.meta.env.VITE_DOWNLOAD_API_BASE || "").replace(/\/$/, "");
+
 function extractVideoId(input) {
     if (!input) return null;
     const patterns = [
@@ -44,7 +46,7 @@ const DownloadVideo = () => {
         setFormats([]);
         setVideoInfo(null);
         try {
-            const res = await axios.get(`/api/download-info?v=${id}`, { timeout: 30000 });
+            const res = await axios.get(`${API_BASE}/api/download-info?v=${id}`, { timeout: 30000 });
             setFormats(res.data.formats || []);
             setVideoInfo(res.data.info || null);
             if (!res.data.formats?.length) {
@@ -65,7 +67,7 @@ const DownloadVideo = () => {
         const ext = fmt.ext || "mp4";
         const fileName = (videoInfo?.title || "video").replace(/[<>:"/\\|?*]/g, "").substring(0, 80) + "." + ext;
         const a = document.createElement("a");
-        a.href = `/api/download?v=${videoId}&format_id=${fmt.format_id}&title=${title}&ext=${ext}`;
+        a.href = `${API_BASE}/api/download?v=${videoId}&format_id=${fmt.format_id}&title=${title}&ext=${ext}`;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
