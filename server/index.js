@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -22,6 +23,19 @@ const ytDlpBin = join(
   "bin",
   isWin ? "yt-dlp.exe" : "yt-dlp",
 );
+const ytDlpAltBin = join(
+  process.cwd(),
+  "node_modules",
+  "youtube-dl-exec",
+  "bin",
+  "yt-dlp",
+);
+
+function resolveYtDlpCommand() {
+  if (existsSync(ytDlpBin)) return ytDlpBin;
+  if (existsSync(ytDlpAltBin)) return ytDlpAltBin;
+  return "yt-dlp";
+}
 
 function formatBytes(bytes) {
   if (!bytes || Number.isNaN(bytes)) return "N/A";
@@ -55,6 +69,7 @@ async function getCookieArgs() {
 
 function runYtDlpJson(videoId, cookieArgs) {
   return new Promise((resolve, reject) => {
+    const ytdlpCommand = resolveYtDlpCommand();
     const args = [
       `https://www.youtube.com/watch?v=${videoId}`,
       "-J",
@@ -66,7 +81,7 @@ function runYtDlpJson(videoId, cookieArgs) {
       ...cookieArgs,
     ];
 
-    const child = spawn(ytDlpBin, args);
+    const child = spawn(ytdlpCommand, args);
     let stdout = "";
     let stderr = "";
 
@@ -124,7 +139,11 @@ function normalizeFormats(info) {
 }
 
 app.get("/health", (_req, res) => {
-  res.status(200).json({ ok: true });
+  res.status(200).json({
+    ok: true,
+    ytdlpCommand: resolveYtDlpCommand(),
+    ytdlpBinExists: existsSync(ytDlpBin) || existsSync(ytDlpAltBin),
+  });
 });
 
 app.get("/api/download-info", async (req, res) => {
@@ -154,6 +173,11 @@ app.get("/api/download-info", async (req, res) => {
   } catch (err) {
     const message = String(err?.message || "");
     console.error("download-info error:", message);
+    if (message.includes("ENOENT")) {
+      return res.status(500).json({
+        error: "Server thiếu yt-dlp binary. Kiểm tra deploy/build trên Railway.",
+      });
+    }
     const isUnavailable =
       /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
         message,
@@ -182,13 +206,7 @@ app.get("/api/download", async (req, res) => {
 
   try {
     const { cookieArgs } = await getCookieArgs();
-    const ytdlpBin = join(
-      process.cwd(),
-      "node_modules",
-      "youtube-dl-exec",
-      "bin",
-      process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
-    );
+    const ytdlpCommand = resolveYtDlpCommand();
 
     const args = [
       `https://www.youtube.com/watch?v=${videoId}`,
@@ -204,7 +222,7 @@ app.get("/api/download", async (req, res) => {
       ...cookieArgs,
     ];
 
-    const child = spawn(ytdlpBin, args);
+    const child = spawn(ytdlpCommand, args);
     let headersSent = false;
     let stderrOutput = "";
 
@@ -242,8 +260,15 @@ app.get("/api/download", async (req, res) => {
       res.end();
     });
 
-    child.on("error", () => {
+    child.on("error", (err) => {
       if (!headersSent) {
+        const message = String(err?.message || "");
+        if (message.includes("ENOENT")) {
+          res
+            .status(500)
+            .json({ error: "Server thiếu yt-dlp binary. Kiểm tra deploy/build trên Railway." });
+          return;
+        }
         res.status(500).json({ error: "Server error" });
       } else {
         res.end();
