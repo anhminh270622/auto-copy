@@ -209,77 +209,79 @@ app.get("/api/download", async (req, res) => {
   try {
     const { cookieArgs } = await getCookieArgs();
     const ytdlpCommand = resolveYtDlpCommand();
-
-    const args = [
-      `https://www.youtube.com/watch?v=${videoId}`,
-      "-f",
-      String(formatId),
-      "-o",
-      "-",
-      "--no-warnings",
-      "--no-check-certificates",
-      "--force-ipv4",
-      "--extractor-args",
-      "youtube:player_client=android,web",
-      ...cookieArgs,
-    ];
-
-    const child = spawn(ytdlpCommand, args);
+    const sourceUrl = `https://www.youtube.com/watch?v=${videoId}`;
     let headersSent = false;
-    let stderrOutput = "";
 
-    child.stdout.on("data", (chunk) => {
-      if (!headersSent) {
-        headersSent = true;
-        res.writeHead(200, {
-          "Content-Type": "application/octet-stream",
-          "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+    const runDownload = (selector) =>
+      new Promise((resolve, reject) => {
+        const args = [
+          sourceUrl,
+          "-f",
+          selector,
+          "-o",
+          "-",
+          "--no-warnings",
+          "--no-check-certificates",
+          "--force-ipv4",
+          "--extractor-args",
+          "youtube:player_client=android,web",
+          ...cookieArgs,
+        ];
+        const child = spawn(ytdlpCommand, args);
+        let stderrOutput = "";
+
+        child.stdout.on("data", (chunk) => {
+          if (!headersSent) {
+            headersSent = true;
+            res.writeHead(200, {
+              "Content-Type": "application/octet-stream",
+              "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+            });
+          }
+          res.write(chunk);
         });
-      }
-      res.write(chunk);
-    });
 
-    child.stderr.on("data", (data) => {
-      stderrOutput += data.toString();
-      if (stderrOutput.length > 4000) {
-        stderrOutput = stderrOutput.slice(-4000);
-      }
-    });
-
-    child.on("close", (code) => {
-      if (code !== 0 && !headersSent) {
-        const isUnavailable =
-          /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
-            stderrOutput,
-          );
-        res.status(isUnavailable ? 422 : 500).json({
-          error: isUnavailable
-            ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
-            : "Download failed",
+        child.stderr.on("data", (data) => {
+          stderrOutput += data.toString();
+          if (stderrOutput.length > 4000) stderrOutput = stderrOutput.slice(-4000);
         });
-        return;
-      }
-      res.end();
-    });
 
-    child.on("error", (err) => {
-      if (!headersSent) {
-        const message = String(err?.message || "");
-        if (message.includes("ENOENT")) {
-          res
-            .status(500)
-            .json({ error: "Server thiếu yt-dlp binary. Kiểm tra deploy/build trên Railway." });
-          return;
-        }
-        res.status(500).json({ error: "Server error" });
-      } else {
-        res.end();
-      }
-    });
+        child.on("error", (err) => reject(err));
+        child.on("close", (code) => {
+          if (code === 0) {
+            if (headersSent) res.end();
+            resolve({ ok: true, stderrOutput });
+            return;
+          }
+          resolve({ ok: false, stderrOutput });
+        });
 
-    req.on("close", () => {
-      if (!child.killed) child.kill();
-    });
+        req.on("close", () => {
+          if (!child.killed) child.kill();
+        });
+      });
+
+    let result = await runDownload(String(formatId));
+
+    if (!result.ok && !headersSent && /requested format is not available/i.test(result.stderrOutput)) {
+      const fallbackSelector =
+        fileExt === "m4a" || fileExt === "mp3"
+          ? "bestaudio[ext=m4a]/bestaudio"
+          : "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best";
+      result = await runDownload(fallbackSelector);
+    }
+
+    if (!result.ok && !headersSent) {
+      const isUnavailable = /video unavailable|private video|sign in|age-restricted|members-only/i.test(
+        result.stderrOutput,
+      );
+      res.status(isUnavailable ? 422 : 500).json({
+        error: isUnavailable
+          ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
+          : "Download failed",
+      });
+      return;
+    }
   } catch {
     return res.status(500).json({ error: "Download failed" });
   }
