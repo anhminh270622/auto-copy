@@ -52,12 +52,27 @@ export default async function handler(req, res) {
         .json({ error: "Format not found across all clients" });
     }
 
-    const url = await fmt.decipher(yt.session.player);
-    const dlUrl = url instanceof URL ? url.toString() : String(url);
+    let dlUrl = "";
+    if (fmt.url) {
+      dlUrl = String(fmt.url);
+    } else {
+      const url = await fmt.decipher(yt.session.player);
+      dlUrl = url instanceof URL ? url.toString() : String(url);
+    }
 
-    const upstream = await fetch(dlUrl);
+    const upstream = await fetch(dlUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "*/*",
+        Referer: "https://www.youtube.com/",
+        Origin: "https://www.youtube.com",
+      },
+    });
     if (!upstream.ok) {
-      return res.status(502).json({ error: "Failed to fetch video stream" });
+      return res.status(502).json({
+        error: `Failed to fetch video stream (${upstream.status})`,
+      });
     }
 
     const rawName =

@@ -28,6 +28,27 @@ function formatDuration(seconds) {
 
 const CLIENTS = ["ANDROID", "TVHTML5", "WEB"];
 
+async function getNoembedInfo(videoId) {
+  const response = await fetch(
+    `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`,
+  );
+  if (!response.ok) {
+    throw new Error(`noembed failed with status ${response.status}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return {
+    title: data.title || "",
+    thumbnail:
+      data.thumbnail_url ||
+      `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    channel: data.author_name || "",
+    duration: "",
+  };
+}
+
 async function getInfoWithFallback(videoId) {
   let lastError;
   for (const clientType of CLIENTS) {
@@ -55,18 +76,26 @@ export default async function handler(req, res) {
   if (!videoId) return res.status(400).json({ error: "Missing video ID" });
 
   try {
-    const { info } = await getInfoWithFallback(videoId);
+    let info = null;
+    let videoInfo = null;
 
-    const videoInfo = {
-      title: info.basic_info.title || "",
-      thumbnail:
-        info.basic_info.thumbnail?.[0]?.url ||
-        `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
-      channel: info.basic_info.author || "",
-      duration: formatDuration(info.basic_info.duration),
-    };
+    try {
+      const ytResult = await getInfoWithFallback(videoId);
+      info = ytResult.info;
+      videoInfo = {
+        title: info.basic_info.title || "",
+        thumbnail:
+          info.basic_info.thumbnail?.[0]?.url ||
+          `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+        channel: info.basic_info.author || "",
+        duration: formatDuration(info.basic_info.duration),
+      };
+    } catch (ytErr) {
+      console.error("youtubei failed, fallback to noembed:", ytErr.message);
+      videoInfo = await getNoembedInfo(videoId);
+    }
 
-    const combined = (info.streaming_data?.formats || []).map((f) => ({
+    const combined = (info?.streaming_data?.formats || []).map((f) => ({
       format_id: String(f.itag),
       quality: f.quality_label || "360p",
       ext: f.mime_type?.includes("webm") ? "webm" : "mp4",
@@ -75,7 +104,7 @@ export default async function handler(req, res) {
       size: formatBytes(f.content_length),
     }));
 
-    const adaptive = (info.streaming_data?.adaptive_formats || [])
+    const adaptive = (info?.streaming_data?.adaptive_formats || [])
       .filter((f) => f.content_length)
       .map((f) => {
         const isVideo = f.mime_type?.startsWith("video/");
@@ -107,11 +136,21 @@ export default async function handler(req, res) {
 
     const formats = [...combined, ...videoOnly, ...audioOnly];
 
-    if (formats.length === 0) {
-      console.warn("No formats found after filtering");
-    }
+    const finalFormats =
+      formats.length > 0
+        ? formats
+        : [
+            {
+              format_id: "18",
+              quality: "360p",
+              ext: "mp4",
+              hasVideo: true,
+              hasAudio: true,
+              size: "N/A",
+            },
+          ];
 
-    res.status(200).json({ info: videoInfo, formats });
+    res.status(200).json({ info: videoInfo, formats: finalFormats });
   } catch (err) {
     console.error("download-info error:", err);
     res
