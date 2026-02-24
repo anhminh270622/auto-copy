@@ -139,6 +139,14 @@ function normalizeFormats(info) {
     });
 }
 
+function hasPlayableFormats(formats) {
+  return (formats || []).some((f) => {
+    const hasVideo = f.vcodec && f.vcodec !== "none" && f.vcodec !== "images";
+    const hasAudio = f.acodec && f.acodec !== "none";
+    return hasVideo || hasAudio;
+  });
+}
+
 async function getNoembedInfo(videoId) {
   const response = await fetch(
     `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`,
@@ -185,6 +193,15 @@ app.get("/api/download-info", async (req, res) => {
     };
 
     const formats = normalizeFormats(info);
+    if (!hasPlayableFormats(info.formats || [])) {
+      return res.status(200).json({
+        info: videoInfo,
+        formats: [],
+        canDownload: false,
+        message:
+          "YouTube hiện không trả stream audio/video cho video này trên server (chỉ có storyboard). Hãy cập nhật YT_COOKIE hoặc thử video khác.",
+      });
+    }
     return res.status(200).json({
       info: videoInfo,
       formats,
@@ -204,18 +221,10 @@ app.get("/api/download-info", async (req, res) => {
         const videoInfo = await getNoembedInfo(videoId);
         return res.status(200).json({
           info: videoInfo,
-          formats: [
-            {
-              format_id: "auto",
-              quality: "Tự động tốt nhất",
-              ext: "mp4",
-              hasVideo: true,
-              hasAudio: true,
-              size: "N/A",
-            },
-          ],
-          canDownload: true,
-          message: "Dùng chế độ tự động do YouTube không trả danh sách format chi tiết.",
+          formats: [],
+          canDownload: false,
+          message:
+            "YouTube không trả stream audio/video cho video này trên server hiện tại (chỉ storyboard). Hãy cập nhật YT_COOKIE hoặc thử video khác.",
         });
       } catch {
         // fall through to generic error response
@@ -325,6 +334,14 @@ app.get("/api/download", async (req, res) => {
     }
 
     if (!result.ok && !headersSent) {
+      if (/requested format is not available/i.test(result.stderrOutput)) {
+        res.status(422).json({
+          error:
+            "YouTube không trả stream tải về cho video này trên server hiện tại. Hãy cập nhật YT_COOKIE hoặc thử video khác.",
+          ...(debug ? { detail: result.stderrOutput.slice(0, 800) } : {}),
+        });
+        return;
+      }
       const isUnavailable = /video unavailable|private video|sign in|age-restricted|members-only/i.test(
         result.stderrOutput,
       );
