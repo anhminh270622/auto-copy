@@ -148,6 +148,7 @@ app.get("/health", (_req, res) => {
 
 app.get("/api/download-info", async (req, res) => {
   const videoId = req.query.v;
+  const debug = req.query.debug === "1";
   if (!videoId) {
     return res.status(400).json({ error: "Missing video ID" });
   }
@@ -186,6 +187,7 @@ app.get("/api/download-info", async (req, res) => {
       error: isUnavailable
         ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
         : "Không thể lấy thông tin video.",
+      ...(debug ? { detail: message.slice(0, 800) } : {}),
     });
   }
 });
