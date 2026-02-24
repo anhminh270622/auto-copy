@@ -1,6 +1,9 @@
 import { Innertube, Platform } from "youtubei.js";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { writeFile } from "node:fs/promises";
 
 Platform.shim.eval = async (data, env) => {
   const props = [];
@@ -11,6 +14,76 @@ Platform.shim.eval = async (data, env) => {
 };
 
 const CLIENTS = ["ANDROID", "TVHTML5", "WEB"];
+const isWin = process.platform === "win32";
+const ytDlpBin = join(
+  process.cwd(),
+  "node_modules",
+  "youtube-dl-exec",
+  "bin",
+  isWin ? "yt-dlp.exe" : "yt-dlp",
+);
+
+async function getCookieArgs() {
+  if (!process.env.YT_COOKIE) return [];
+  const cookiePath = `/tmp/yt-cookie-${Date.now()}.txt`;
+  await writeFile(cookiePath, process.env.YT_COOKIE, "utf8");
+  return ["--cookies", cookiePath];
+}
+
+async function streamViaYtDlp({ videoId, formatId, title, ext, res }) {
+  const rawName =
+    decodeURIComponent(title || "video")
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, "")
+      .substring(0, 80) || "video";
+  const fileExt = ext || "mp4";
+  const asciiName = rawName.replace(/[^\x20-\x7E]/g, "_") + "." + fileExt;
+  const utf8Name = encodeURIComponent(rawName + "." + fileExt);
+
+  const cookieArgs = await getCookieArgs();
+  const args = [
+    `https://www.youtube.com/watch?v=${videoId}`,
+    "-f",
+    formatId,
+    "-o",
+    "-",
+    "--no-warnings",
+    "--no-check-certificates",
+    ...cookieArgs,
+  ];
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(ytDlpBin, args);
+    let headersSent = false;
+    let stderrOutput = "";
+
+    child.stdout.on("data", (chunk) => {
+      if (!headersSent) {
+        headersSent = true;
+        res.writeHead(200, {
+          "Content-Type": "application/octet-stream",
+          "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+        });
+      }
+      res.write(chunk);
+    });
+
+    child.stderr.on("data", (data) => {
+      stderrOutput += data.toString();
+      if (stderrOutput.length > 4000) stderrOutput = stderrOutput.slice(-4000);
+    });
+
+    child.on("close", (code) => {
+      if (code !== 0 && !headersSent) {
+        reject(new Error(stderrOutput || "yt-dlp download failed"));
+        return;
+      }
+      res.end();
+      resolve();
+    });
+
+    child.on("error", (err) => reject(err));
+  });
+}
 
 export default async function handler(req, res) {
   const { v: videoId, format_id, title, ext } = req.query;
@@ -47,9 +120,8 @@ export default async function handler(req, res) {
     }
 
     if (!fmt) {
-      return res
-        .status(404)
-        .json({ error: "Format not found across all clients" });
+      await streamViaYtDlp({ videoId, formatId: format_id, title, ext, res });
+      return;
     }
 
     let dlUrl = "";
@@ -69,10 +141,10 @@ export default async function handler(req, res) {
         Origin: "https://www.youtube.com",
       },
     });
+
     if (!upstream.ok) {
-      return res.status(502).json({
-        error: `Failed to fetch video stream (${upstream.status})`,
-      });
+      await streamViaYtDlp({ videoId, formatId: format_id, title, ext, res });
+      return;
     }
 
     const rawName =
@@ -96,7 +168,16 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("download error:", err);
     if (!res.headersSent) {
-      res.status(500).json({ error: "Download failed" });
+      const message = String(err?.message || "");
+      const isUnavailable =
+        /video unavailable|private video|sign in|age-restricted|members-only|not available/i.test(
+          message,
+        );
+      res.status(isUnavailable ? 422 : 500).json({
+        error: isUnavailable
+          ? "Video này không thể tải (riêng tư/giới hạn khu vực/cần đăng nhập)."
+          : "Download failed",
+      });
     }
   }
 }
