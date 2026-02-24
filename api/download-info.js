@@ -30,6 +30,12 @@ function formatDuration(seconds) {
 
 const CLIENTS = ["ANDROID", "TVHTML5", "WEB"];
 
+function getCookieString() {
+  const raw = process.env.YT_COOKIE || "";
+  if (!raw) return "";
+  return raw.includes("\n") ? raw : raw.replace(/\\n/g, "\n");
+}
+
 async function getNoembedInfo(videoId) {
   const response = await fetch(
     `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`,
@@ -83,10 +89,11 @@ function normalizeYtDlpFormats(info) {
 }
 
 async function getInfoViaYtDlp(videoId) {
+  const cookieString = getCookieString();
   let cookiePath;
-  if (process.env.YT_COOKIE) {
+  if (cookieString) {
     cookiePath = `/tmp/yt-cookie-${Date.now()}.txt`;
-    await writeFile(cookiePath, process.env.YT_COOKIE, "utf8");
+    await writeFile(cookiePath, cookieString, "utf8");
   }
 
   const info = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
@@ -111,10 +118,14 @@ async function getInfoViaYtDlp(videoId) {
 
 async function getInfoWithFallback(videoId) {
   let lastError;
+  const cookieString = getCookieString();
   for (const clientType of CLIENTS) {
     try {
       console.log(`Trying client: ${clientType}`);
-      const yt = await Innertube.create({ client_type: clientType });
+      const yt = await Innertube.create({
+        client_type: clientType,
+        ...(cookieString ? { cookie: cookieString } : {}),
+      });
       const info = await yt.getBasicInfo(videoId);
 
       // Check if we actually got streaming data
@@ -213,7 +224,9 @@ export default async function handler(req, res) {
       canDownload: fromYouTubeStream && finalFormats.length > 0,
       message: fromYouTubeStream
         ? undefined
-        : "Video này YouTube không cho truy cập stream từ server hiện tại, nên chưa thể tải.",
+        : getCookieString()
+          ? "Video này YouTube chặn stream ở server hiện tại, kể cả khi đã có cookie."
+          : "Video này YouTube chặn stream ở server hiện tại. Hãy thêm biến môi trường YT_COOKIE trên Vercel để thử lại.",
     });
   } catch (err) {
     console.error("download-info error:", err);

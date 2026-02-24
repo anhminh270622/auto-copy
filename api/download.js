@@ -23,10 +23,17 @@ const ytDlpBin = join(
   isWin ? "yt-dlp.exe" : "yt-dlp",
 );
 
+function getCookieString() {
+  const raw = process.env.YT_COOKIE || "";
+  if (!raw) return "";
+  return raw.includes("\n") ? raw : raw.replace(/\\n/g, "\n");
+}
+
 async function getCookieArgs() {
-  if (!process.env.YT_COOKIE) return [];
+  const cookieString = getCookieString();
+  if (!cookieString) return [];
   const cookiePath = `/tmp/yt-cookie-${Date.now()}.txt`;
-  await writeFile(cookiePath, process.env.YT_COOKIE, "utf8");
+  await writeFile(cookiePath, cookieString, "utf8");
   return ["--cookies", cookiePath];
 }
 
@@ -97,7 +104,10 @@ export default async function handler(req, res) {
     for (const clientType of CLIENTS) {
       try {
         console.log(`Trying client for download: ${clientType}`);
-        yt = await Innertube.create({ client_type: clientType });
+        yt = await Innertube.create({
+          client_type: clientType,
+          ...(getCookieString() ? { cookie: getCookieString() } : {}),
+        });
         const info = await yt.getBasicInfo(videoId);
 
         const allFormats = [
