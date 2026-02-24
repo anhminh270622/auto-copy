@@ -139,6 +139,25 @@ function normalizeFormats(info) {
     });
 }
 
+async function getNoembedInfo(videoId) {
+  const response = await fetch(
+    `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`,
+  );
+  if (!response.ok) {
+    throw new Error(`noembed failed with status ${response.status}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return {
+    title: data.title || "",
+    thumbnail: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    channel: data.author_name || "",
+    duration: "",
+  };
+}
+
 app.get("/health", (_req, res) => {
   res.status(200).json({
     ok: true,
@@ -179,6 +198,28 @@ app.get("/api/download-info", async (req, res) => {
       return res.status(500).json({
         error: "Server thiếu yt-dlp binary. Kiểm tra deploy/build trên Railway.",
       });
+    }
+    if (/requested format is not available/i.test(message)) {
+      try {
+        const videoInfo = await getNoembedInfo(videoId);
+        return res.status(200).json({
+          info: videoInfo,
+          formats: [
+            {
+              format_id: "auto",
+              quality: "Tự động tốt nhất",
+              ext: "mp4",
+              hasVideo: true,
+              hasAudio: true,
+              size: "N/A",
+            },
+          ],
+          canDownload: true,
+          message: "Dùng chế độ tự động do YouTube không trả danh sách format chi tiết.",
+        });
+      } catch {
+        // fall through to generic error response
+      }
     }
     const isUnavailable =
       /video unavailable|private video|sign in|age-restricted|members-only|not available in your country/i.test(
@@ -263,7 +304,8 @@ app.get("/api/download", async (req, res) => {
         });
       });
 
-    let result = await runDownload(String(formatId));
+    const requestedSelector = String(formatId) === "auto" ? "best" : String(formatId);
+    let result = await runDownload(requestedSelector);
 
     if (!result.ok && !headersSent && /requested format is not available/i.test(result.stderrOutput)) {
       const fallbackSelector =
