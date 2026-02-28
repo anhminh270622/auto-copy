@@ -74,7 +74,7 @@ const YoutubeThumbnail = ({ showTitle = true }) => {
                     onClick={thumbnailUrl ? onReset : getThumbnail}
                     className={`button ${thumbnailUrl ? 'button-secondary' : ''}`}
                 >
-                    {thumbnailUrl ? '🔁 Nhập lại' : 'Nhận ảnh thumbnail'}
+                    {thumbnailUrl ? '🔁 Nhập lại' : 'Nhận ảnh'}
                 </button>
             </div>
             {thumbnailUrl && (
