@@ -4,13 +4,16 @@ import { ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
 import Sidebar from "./components/sidebar/Sidebar.jsx";
 import AutoCopy from "./components/autoCopy/AutoCopy.jsx";
-import DownloadYtb from "./components/downloadYtb/downloadYtb.jsx";
 import ImageToVideoConverter from "./components/imgToVideoConvert/ImgToVideoConvert.jsx";
 import DownloadVideo from "./components/downloadVideo/DownloadVideo.jsx";
 
 export default function App() {
     const [activeTab, setActiveTab] = useState(() => {
-        return localStorage.getItem('activeTab') || 'auto-copy';
+        const savedTab = localStorage.getItem('activeTab') || 'auto-copy';
+        return savedTab === 'youtube-thumbnail' ? 'auto-copy' : savedTab;
+    });
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        return localStorage.getItem('sidebarCollapsed') === 'true';
     });
     const [theme, setTheme] = useState(() => {
         return localStorage.getItem('theme') || 'light';
@@ -26,6 +29,10 @@ export default function App() {
         localStorage.setItem('activeTab', activeTab);
     }, [activeTab]);
 
+    useEffect(() => {
+        localStorage.setItem('sidebarCollapsed', String(sidebarCollapsed));
+    }, [sidebarCollapsed]);
+
     const toggleTheme = () => {
         setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     };
@@ -39,8 +46,6 @@ export default function App() {
         switch (activeTab) {
             case 'auto-copy':
                 return <AutoCopy />;
-            case 'youtube-thumbnail':
-                return <DownloadYtb />;
             case 'img-to-video':
                 return <ImageToVideoConverter />;
             case 'download-video':
@@ -61,6 +66,8 @@ export default function App() {
                     onToggleTheme={toggleTheme}
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
+                    isCollapsed={sidebarCollapsed}
+                    onToggleCollapse={() => setSidebarCollapsed(prev => !prev)}
                 />
                 <main className="main-content">
                     <div className="mobile-header">

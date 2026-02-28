@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import CheckBox from "../checkbox/checkbox";
+import DownloadYtb from "../downloadYtb/downloadYtb";
 
 export default function AutoCopy() {
     const getSavedData = () => {
@@ -220,6 +221,10 @@ export default function AutoCopy() {
                         ⬅️ Hoàn tác
                     </button>
                 )}
+            </div>
+            <div className="downloadYtb">
+                <h3 className="title">🖼️ Ảnh thumbnail từ video YouTube</h3>
+                <DownloadYtb showTitle={false} />
             </div>
         </>
     );

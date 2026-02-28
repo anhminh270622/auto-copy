@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import "./downloadYtb.css"
 
-const YoutubeThumbnail = () => {
+const YoutubeThumbnail = ({ showTitle = true }) => {
     const [youtubeURL, setYoutubeURL] = useState('');
     const [thumbnailUrl, setThumbnailUrl] = useState('');
     const [error, setError] = useState('');
@@ -57,7 +57,7 @@ const YoutubeThumbnail = () => {
 
     return (
         <div className="downloadYtb-container">
-            <h2 style={{ textAlign: "left" }}>Ảnh thumbnail từ video YouTube</h2>
+            {showTitle && <h2 style={{ textAlign: "left" }}>Ảnh thumbnail từ video YouTube</h2>}
             <div className="form-input">
                 <input
                     onChange={(e) => {
