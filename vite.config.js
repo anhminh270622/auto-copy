@@ -369,6 +369,50 @@ function downloadPlugin() {
                         return
                     }
 
+                    if (url.pathname === '/api/thumbnail') {
+                        const rawUrl = String(url.searchParams.get('url') || '')
+                        if (!rawUrl) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ error: 'Missing image url' }))
+                            return
+                        }
+                        let remote
+                        try {
+                            remote = new URL(rawUrl)
+                        } catch {
+                            res.writeHead(400, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ error: 'Invalid image url' }))
+                            return
+                        }
+                        if (!/^https?:$/.test(remote.protocol)) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ error: 'Unsupported protocol' }))
+                            return
+                        }
+
+                        const upstream = await fetch(remote.toString(), {
+                            headers: {
+                                'user-agent':
+                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                                accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+                                referer: 'https://www.youtube.com/',
+                            },
+                        })
+                        if (!upstream.ok) {
+                            res.writeHead(upstream.status, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ error: 'Failed to fetch image' }))
+                            return
+                        }
+                        const contentType = upstream.headers.get('content-type') || 'image/jpeg'
+                        const bytes = Buffer.from(await upstream.arrayBuffer())
+                        res.writeHead(200, {
+                            'Content-Type': contentType,
+                            'Cache-Control': 'public, max-age=3600',
+                        })
+                        res.end(bytes)
+                        return
+                    }
+
                     next()
                 } catch (err) {
                     if (!res.headersSent) {

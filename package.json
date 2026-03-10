@@ -44,12 +44,31 @@
   "build": {
     "appId": "com.minh.autocopy",
     "productName": "Auto Copy",
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",
       "server/**/*",
       "package.json",
-      "node_modules/**/*"
+      "!**/*.map",
+      "!node_modules/electron/**/*",
+      "!node_modules/electron-builder/**/*",
+      "!node_modules/@electron/**/*",
+      "!node_modules/vite/**/*",
+      "!node_modules/@vitejs/**/*",
+      "!node_modules/esbuild/**/*",
+      "!node_modules/@esbuild/**/*",
+      "!node_modules/eslint/**/*",
+      "!node_modules/@eslint/**/*",
+      "!node_modules/eslint-*/*",
+      "!node_modules/typescript/**/*",
+      "!node_modules/@types/**/*",
+      "!node_modules/concurrently/**/*",
+      "!node_modules/wait-on/**/*",
+      "!node_modules/cross-env/**/*"
     ],
     "asarUnpack": [
       "node_modules/youtube-dl-exec/bin/**/*"

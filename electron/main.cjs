@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage } = require("electron");
 
 let stopApi = null;
 
@@ -54,4 +54,47 @@ app.on("before-quit", async () => {
   if (typeof stopApi === "function") {
     await stopApi();
   }
+});
+
+ipcMain.handle("clipboard:copy-text", async (_event, text) => {
+  const value = String(text || "");
+  if (!value) return { ok: false, message: "Empty text" };
+  clipboard.writeText(value);
+  return { ok: true };
+});
+
+ipcMain.handle("clipboard:copy-image-from-url", async (_event, imageUrl) => {
+  const url = String(imageUrl || "");
+  if (!url) return { ok: false, message: "Empty url" };
+  const response = await fetch(url, {
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      referer: "https://www.youtube.com/",
+    },
+  });
+  if (!response.ok) {
+    return { ok: false, message: `HTTP ${response.status}` };
+  }
+  const buf = Buffer.from(await response.arrayBuffer());
+  const image = nativeImage.createFromBuffer(buf);
+  if (image.isEmpty()) {
+    return { ok: false, message: "Invalid image" };
+  }
+  clipboard.writeImage(image);
+  return { ok: true };
+});
+
+ipcMain.handle("clipboard:copy-image-from-data-url", async (_event, dataUrl) => {
+  const value = String(dataUrl || "");
+  if (!value.startsWith("data:image/")) {
+    return { ok: false, message: "Invalid data URL" };
+  }
+  const image = nativeImage.createFromDataURL(value);
+  if (image.isEmpty()) {
+    return { ok: false, message: "Invalid image data" };
+  }
+  clipboard.writeImage(image);
+  return { ok: true };
 });

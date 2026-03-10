@@ -241,6 +241,140 @@ export default function AutoCopy() {
         }, 0);
     };
 
+    const handleCopyThumbnail = async () => {
+        if (!thumbnailUrl) {
+            toast.warning("Chưa có ảnh thumbnail để copy");
+            return;
+        }
+        const toPngBlob = async (blob) =>
+            new Promise((resolve, reject) => {
+                const objectUrl = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext("2d");
+                        if (!ctx) {
+                            URL.revokeObjectURL(objectUrl);
+                            reject(new Error("Không tạo được canvas"));
+                            return;
+                        }
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob((pngBlob) => {
+                            URL.revokeObjectURL(objectUrl);
+                            if (!pngBlob) {
+                                reject(new Error("Không chuyển được ảnh PNG"));
+                                return;
+                            }
+                            resolve(pngBlob);
+                        }, "image/png");
+                    } catch (err) {
+                        URL.revokeObjectURL(objectUrl);
+                        reject(err);
+                    }
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    reject(new Error("Ảnh không tải được"));
+                };
+                img.src = objectUrl;
+            });
+
+        if (window.electronApp?.copyImageFromDataUrl) {
+            try {
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => {
+                        try {
+                            const canvas = document.createElement("canvas");
+                            canvas.width = img.naturalWidth || img.width;
+                            canvas.height = img.naturalHeight || img.height;
+                            const ctx = canvas.getContext("2d");
+                            if (!ctx) {
+                                reject(new Error("Không tạo được canvas"));
+                                return;
+                            }
+                            ctx.drawImage(img, 0, 0);
+                            resolve(canvas.toDataURL("image/png"));
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+                    img.onerror = () => reject(new Error("Ảnh không tải được"));
+                    img.src = thumbnailUrl;
+                });
+                const copied = await window.electronApp.copyImageFromDataUrl(dataUrl);
+                if (copied?.ok) {
+                    toast.success("Đã copy ảnh thumbnail");
+                    return;
+                }
+            } catch {
+                // fallback below
+            }
+        }
+        if (window.electronApp?.copyImageFromUrl) {
+            try {
+                const copied = await window.electronApp.copyImageFromUrl(thumbnailUrl);
+                if (copied?.ok) {
+                    toast.success("Đã copy ảnh thumbnail");
+                    return;
+                }
+            } catch {
+                // fallback below
+            }
+        }
+        try {
+            const proxyPaths = [
+                `/api/thumbnail?url=${encodeURIComponent(thumbnailUrl)}`,
+                API_BASE ? `${API_BASE}/api/thumbnail?url=${encodeURIComponent(thumbnailUrl)}` : "",
+            ].filter(Boolean);
+            let blob = null;
+            for (const url of proxyPaths) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) continue;
+                    blob = await response.blob();
+                    if (blob && blob.size > 0) break;
+                } catch {
+                    // try next endpoint
+                }
+            }
+            if (!blob || blob.size === 0) {
+                throw new Error("Không tải được ảnh qua proxy");
+            }
+            if (navigator.clipboard?.write && window.ClipboardItem) {
+                const pngBlob = blob.type === "image/png" ? blob : await toPngBlob(blob);
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        "image/png": pngBlob,
+                    }),
+                ]);
+                toast.success("Đã copy ảnh thumbnail");
+                return;
+            }
+            if (window.electronApp?.copyText) {
+                await window.electronApp.copyText(thumbnailUrl);
+            } else {
+                await navigator.clipboard.writeText(thumbnailUrl);
+            }
+            toast.info("Máy không hỗ trợ copy ảnh trực tiếp, đã copy link ảnh");
+        } catch {
+            try {
+                if (window.electronApp?.copyText) {
+                    await window.electronApp.copyText(thumbnailUrl);
+                } else {
+                    await navigator.clipboard.writeText(thumbnailUrl);
+                }
+                toast.info("Trình duyệt không cho ghi ảnh vào clipboard, đã copy link ảnh");
+            } catch {
+                toast.error("Không copy được ảnh. Hãy dùng Chrome/Edge trên HTTPS.");
+            }
+        }
+    };
+
     return (
         <>
             <div className={`youtube-auto-section ${loadingYoutube ? "is-loading" : ""}`} aria-busy={loadingYoutube}>
@@ -296,6 +430,11 @@ export default function AutoCopy() {
                             <strong>{title || "Đã nhận thông tin video"}</strong>
                             {channelName ? <small>Kênh: {channelName}</small> : null}
                             <small>Link: {youtubeUrl}</small>
+                            <div className="youtube-preview-actions">
+                                <button className="btn-copy" onClick={handleCopyThumbnail}>
+                                    🖼️ Copy ảnh thumbnail
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

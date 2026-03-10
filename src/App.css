@@ -246,6 +246,16 @@ body,
     word-break: break-word;
 }
 
+.youtube-preview-actions {
+    margin-top: 4px;
+}
+
+.youtube-preview-actions .btn-copy {
+    min-width: auto;
+    padding: 7px 12px;
+    font-size: 0.9rem;
+}
+
 .right, .left {
     flex: 1;
     width: 100%;
