@@ -66,7 +66,7 @@ const YoutubeThumbnail = ({ showTitle = true }) => {
                     }
                     }
                     value={youtubeURL}
-                    placeholder="Paste link YouTube tại đây"
+                    placeholder="Paste link YouTube tại đây."
                     className="input"
                     onPaste={handlePaste}
                 />
