@@ -68,7 +68,14 @@
       "!node_modules/@types/**/*",
       "!node_modules/concurrently/**/*",
       "!node_modules/wait-on/**/*",
-      "!node_modules/cross-env/**/*"
+      "!node_modules/cross-env/**/*",
+      "!node_modules/youtubei.js/**/*",
+      "!node_modules/@bufbuild/**/*",
+      "!node_modules/react/**/*",
+      "!node_modules/react-dom/**/*",
+      "!node_modules/react-icons/**/*",
+      "!node_modules/react-toastify/**/*",
+      "!node_modules/axios/**/*"
     ],
     "asarUnpack": [
       "node_modules/youtube-dl-exec/bin/**/*"
