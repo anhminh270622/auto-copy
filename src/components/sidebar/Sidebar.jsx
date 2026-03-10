@@ -1,5 +1,7 @@
 import './Sidebar.css';
 
+const logoSrc = `${import.meta.env.BASE_URL}logo.png`;
+
 const menuItems = [
     { id: 'auto-copy', label: 'Tự động sao chép', icon: '📋' },
     { id: 'img-to-video', label: 'Ảnh thành Video', icon: '🎬' },
@@ -26,7 +28,7 @@ export default function Sidebar({
                         onClick={isCollapsed ? onToggleCollapse : undefined}
                         title={isCollapsed ? "Mở rộng menu" : undefined}
                     >
-                        <img src="/logo.png" alt="logo" className="sidebar-logo" />
+                        <img src={logoSrc} alt="logo" className="sidebar-logo" />
                     </button>
                     <span className="sidebar-title">Auto Copy</span>
                     {!isCollapsed && (
