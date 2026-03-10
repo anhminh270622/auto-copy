@@ -6,6 +6,7 @@ import Sidebar from "./components/sidebar/Sidebar.jsx";
 import AutoCopy from "./components/autoCopy/AutoCopy.jsx";
 import ImageToVideoConverter from "./components/imgToVideoConvert/ImgToVideoConvert.jsx";
 import DownloadVideo from "./components/downloadVideo/DownloadVideo.jsx";
+import ApiProbe from "./components/apiProbe/ApiProbe.jsx";
 
 export default function App() {
     const [activeTab, setActiveTab] = useState(() => {
@@ -50,6 +51,8 @@ export default function App() {
                 return <ImageToVideoConverter />;
             case 'download-video':
                 return <DownloadVideo />;
+            case 'api-probe':
+                return <ApiProbe />;
             default:
                 return <AutoCopy />;
         }

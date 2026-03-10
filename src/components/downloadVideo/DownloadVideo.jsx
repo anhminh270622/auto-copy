@@ -3,7 +3,11 @@ import axios from "axios";
 import { MdDownload, MdClose, MdLink, MdContentPaste } from "react-icons/md";
 import './DownloadVideo.css';
 
-const API_BASE = (import.meta.env.VITE_DOWNLOAD_API_BASE || "").replace(/\/$/, "");
+const runtimeApiBase =
+    typeof window !== "undefined" && window.electronApp?.apiBase
+        ? window.electronApp.apiBase
+        : "";
+const API_BASE = (runtimeApiBase || import.meta.env.VITE_DOWNLOAD_API_BASE || "").replace(/\/$/, "");
 
 function extractVideoId(input) {
     if (!input) return null;

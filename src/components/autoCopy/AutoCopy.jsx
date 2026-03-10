@@ -1,7 +1,43 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import CheckBox from "../checkbox/checkbox";
-import DownloadYtb from "../downloadYtb/downloadYtb";
+
+const runtimeApiBase =
+    typeof window !== "undefined" && window.electronApp?.apiBase ? window.electronApp.apiBase : "";
+const API_BASE = (runtimeApiBase || import.meta.env.VITE_DOWNLOAD_API_BASE || "").replace(/\/$/, "");
+
+async function getTranscriptWithFallback(videoId) {
+    const query = `v=${encodeURIComponent(videoId)}`;
+    const urls = [
+        `/api/transcript?${query}`,
+        API_BASE ? `${API_BASE}/api/transcript?${query}` : "",
+    ].filter(Boolean);
+
+    for (const url of urls) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) continue;
+            const data = await response.json();
+            if (data?.transcript) return data.transcript;
+        } catch {
+            // Try next endpoint
+        }
+    }
+    return "";
+}
+
+function extractVideoId(input) {
+    if (!input) return null;
+    const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+        /^([a-zA-Z0-9_-]{11})$/,
+    ];
+    for (const p of patterns) {
+        const m = input.match(p);
+        if (m) return m[1];
+    }
+    return null;
+}
 
 export default function AutoCopy() {
     const getSavedData = () => {
@@ -21,6 +57,10 @@ export default function AutoCopy() {
     const [autoCopy, setAutoCopy] = useState(true);
     const [lastState, setLastState] = useState(null);
     const [showUndo, setShowUndo] = useState(false);
+    const [youtubeUrl, setYoutubeUrl] = useState("");
+    const [loadingYoutube, setLoadingYoutube] = useState(false);
+    const [thumbnailUrl, setThumbnailUrl] = useState("");
+    const [channelName, setChannelName] = useState("");
 
     const savedData = getSavedData();
     const [title, setTitle] = useState(savedData.title);
@@ -51,12 +91,26 @@ export default function AutoCopy() {
     }, [title, content, request, description, copyNoDescription]);
 
     const onReset = () => {
-        setLastState({ title, content, request, description, autoCopy, combined, copyNoDescription });
+        setLastState({
+            title,
+            content,
+            request,
+            description,
+            autoCopy,
+            combined,
+            copyNoDescription,
+            youtubeUrl,
+            thumbnailUrl,
+            channelName,
+        });
         setTitle("");
         setContent("");
         setCombined("");
         setCopyNoDescription("");
         setAutoCopy(true);
+        setYoutubeUrl("");
+        setThumbnailUrl("");
+        setChannelName("");
         setShowUndo(true);
         toast.info("Đã nhập lại. Bạn có thể hoàn tác !");
     };
@@ -70,13 +124,104 @@ export default function AutoCopy() {
             setCopyNoDescription(lastState.copyNoDescription);
             setAutoCopy(lastState.autoCopy);
             setCombined(lastState.combined);
+            setYoutubeUrl(lastState.youtubeUrl || "");
+            setThumbnailUrl(lastState.thumbnailUrl || "");
+            setChannelName(lastState.channelName || "");
             setShowUndo(false);
             toast.success("Đã hoàn tác thành công !");
         }
     };
 
+    const handleFillFromYoutube = async (rawUrl) => {
+        if (loadingYoutube) return;
+        const inputUrl = (rawUrl ?? youtubeUrl).trim();
+        const id = extractVideoId(inputUrl);
+        if (!id) {
+            toast.error("Link YouTube không hợp lệ");
+            return;
+        }
+
+        setLoadingYoutube(true);
+        try {
+            const watchUrl = `https://www.youtube.com/watch?v=${id}`;
+            const transcriptPromise = getTranscriptWithFallback(id);
+            const [oembedRes, transcriptRes] = await Promise.allSettled([
+                fetch(`https://noembed.com/embed?url=${encodeURIComponent(watchUrl)}`),
+                transcriptPromise,
+            ]);
+            const data =
+                oembedRes.status === "fulfilled" && oembedRes.value
+                    ? await oembedRes.value.json()
+                    : {};
+            if (data?.error) {
+                throw new Error(data.error);
+            }
+
+            const nextTitle = data?.title || "";
+            const nextChannel = data?.author_name || "";
+            const nextThumb = data?.thumbnail_url || `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+            const transcriptText = transcriptRes.status === "fulfilled" ? transcriptRes.value || "" : "";
+
+            const nextContent = transcriptText.trim() || [nextChannel ? `Kênh: ${nextChannel}` : "", `Link: ${watchUrl}`]
+                .filter(Boolean)
+                .join("\n");
+
+            if (nextTitle) setTitle(nextTitle);
+            setContent(nextContent);
+            setChannelName(nextChannel);
+            setThumbnailUrl(nextThumb);
+            setYoutubeUrl(watchUrl);
+            toast.success("Đã tự điền thông tin từ link YouTube");
+        } catch {
+            toast.error("Không lấy được thông tin từ YouTube");
+        } finally {
+            setLoadingYoutube(false);
+        }
+    };
+
+    const handleYoutubePaste = (e) => {
+        if (loadingYoutube) return;
+        const pastedText = (e.clipboardData || window.clipboardData).getData("text");
+        if (!pastedText) return;
+        setYoutubeUrl(pastedText);
+        setTimeout(() => {
+            handleFillFromYoutube(pastedText);
+        }, 0);
+    };
+
     return (
         <>
+            <div className={`youtube-auto-section ${loadingYoutube ? "is-loading" : ""}`} aria-busy={loadingYoutube}>
+                <h3 className="title">🔗 Link YouTube</h3>
+                <input
+                    value={youtubeUrl}
+                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    onPaste={handleYoutubePaste}
+                    disabled={loadingYoutube}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                            handleFillFromYoutube(e.currentTarget.value);
+                        }
+                    }}
+                    placeholder="Dán link YouTube vào đây (paste là tự điền ngay)"
+                />
+                {loadingYoutube && (
+                    <div className="youtube-loading-row">
+                        <span className="youtube-spinner" />
+                        <small className="youtube-helper">Đang gọi API và lấy thông tin video...</small>
+                    </div>
+                )}
+                {!!thumbnailUrl && (
+                    <div className="youtube-preview-row">
+                        <img src={thumbnailUrl} alt="thumbnail" className="youtube-preview-thumb" />
+                        <div className="youtube-preview-meta">
+                            <strong>{title || "Đã nhận thông tin video"}</strong>
+                            {channelName ? <small>Kênh: {channelName}</small> : null}
+                            <small>Link: {youtubeUrl}</small>
+                        </div>
+                    </div>
+                )}
+            </div>
             <div className="app-main-row">
                 <div className="left">
                     <h3 className="title">✍️ Nhập thông tin:</h3>
@@ -221,10 +366,6 @@ export default function AutoCopy() {
                         ⬅️ Hoàn tác
                     </button>
                 )}
-            </div>
-            <div className="downloadYtb">
-                <h3 className="title">🖼️ Ảnh thumbnail từ video YouTube</h3>
-                <DownloadYtb showTitle={false} />
             </div>
         </>
     );

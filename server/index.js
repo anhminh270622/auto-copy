@@ -1,13 +1,19 @@
 import express from "express";
 import cors from "cors";
+import youtubedl from "youtube-dl-exec";
 import { spawn } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const require = createRequire(import.meta.url);
 
 app.use(
   cors({
@@ -16,24 +22,61 @@ app.use(
 );
 
 const isWin = process.platform === "win32";
-const ytDlpBin = join(
+const ytDlpName = isWin ? "yt-dlp.exe" : "yt-dlp";
+const ytdlpFromPackage =
+  youtubedl?.constants?.YOUTUBE_DL_PATH || youtubedl?.constants?.YTDLP_PATH || "";
+
+let ytdlpPackageDir = "";
+try {
+  const ytdlpPkg = require.resolve("youtube-dl-exec/package.json");
+  ytdlpPackageDir = dirname(ytdlpPkg);
+} catch {
+  ytdlpPackageDir = "";
+}
+
+const unpackedPackageDir = ytdlpPackageDir
+  ? ytdlpPackageDir.replace("app.asar", "app.asar.unpacked")
+  : "";
+
+const ytDlpRoots = [
   process.cwd(),
-  "node_modules",
-  "youtube-dl-exec",
-  "bin",
-  isWin ? "yt-dlp.exe" : "yt-dlp",
+  join(__dirname, ".."),
+  ytdlpPackageDir ? join(ytdlpPackageDir, "..") : "",
+  unpackedPackageDir ? join(unpackedPackageDir, "..") : "",
+  process.resourcesPath ? join(process.resourcesPath, "app.asar") : "",
+  process.resourcesPath ? join(process.resourcesPath, "app.asar.unpacked") : "",
+  process.resourcesPath || "",
+].filter(Boolean);
+const ytDlpCandidates = ytDlpRoots.map((root) =>
+  join(root, "node_modules", "youtube-dl-exec", "bin", ytDlpName),
 );
-const ytDlpAltBin = join(
-  process.cwd(),
-  "node_modules",
-  "youtube-dl-exec",
-  "bin",
-  "yt-dlp",
-);
+if (ytdlpFromPackage) {
+  ytDlpCandidates.push(ytdlpFromPackage);
+  ytDlpCandidates.push(ytdlpFromPackage.replace("app.asar", "app.asar.unpacked"));
+}
+if (ytdlpPackageDir) {
+  ytDlpCandidates.push(join(ytdlpPackageDir, "bin", ytDlpName));
+}
+if (unpackedPackageDir) {
+  ytDlpCandidates.push(join(unpackedPackageDir, "bin", ytDlpName));
+}
 
 function resolveYtDlpCommand() {
-  if (existsSync(ytDlpBin)) return ytDlpBin;
-  if (existsSync(ytDlpAltBin)) return ytDlpAltBin;
+  const preferred = ytDlpCandidates
+    .filter((candidate) => candidate.includes("app.asar.unpacked"))
+    .find((candidate) => existsSync(candidate));
+  if (preferred) return preferred;
+
+  const found = ytDlpCandidates
+    .filter((candidate) => !candidate.includes("app.asar"))
+    .find((candidate) => existsSync(candidate));
+  if (found) return found;
+
+  const asarFallback = ytDlpCandidates
+    .filter((candidate) => candidate.includes("app.asar"))
+    .find((candidate) => existsSync(candidate));
+  if (asarFallback) return asarFallback;
+
   return "yt-dlp";
 }
 
@@ -147,6 +190,136 @@ function hasPlayableFormats(formats) {
   });
 }
 
+function formatTranscriptTime(totalSeconds) {
+  const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function decodeHtmlEntities(input) {
+  return String(input || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function cleanTranscriptText(input) {
+  return decodeHtmlEntities(input)
+    .replace(/<[^>]*>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseVttTranscript(rawText) {
+  const lines = String(rawText || "").split(/\r?\n/);
+  const items = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line.includes("-->")) continue;
+    const [start] = line.split("-->");
+    const parts = start.trim().split(":").map((x) => Number(x.replace(",", ".")));
+    let seconds = 0;
+    if (parts.length === 3) {
+      seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      seconds = parts[0] * 60 + parts[1];
+    } else {
+      continue;
+    }
+    const textParts = [];
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const t = lines[j];
+      if (!t.trim()) break;
+      textParts.push(t.trim());
+    }
+    const text = cleanTranscriptText(textParts.join(" "));
+    if (!text) continue;
+    items.push({ time: formatTranscriptTime(seconds), text });
+  }
+  return items;
+}
+
+function parseJson3Transcript(payload) {
+  const events = Array.isArray(payload?.events) ? payload.events : [];
+  const items = [];
+  for (const event of events) {
+    const startMs = Number(event?.tStartMs);
+    if (!Number.isFinite(startMs)) continue;
+    const segs = Array.isArray(event?.segs) ? event.segs : [];
+    const text = cleanTranscriptText(segs.map((seg) => seg?.utf8 || "").join(""));
+    if (!text) continue;
+    items.push({
+      time: formatTranscriptTime(startMs / 1000),
+      text,
+    });
+  }
+  return items;
+}
+
+function pickCaptionTrack(info) {
+  const pools = [
+    { kind: "subtitles", tracks: info?.subtitles || {} },
+    { kind: "automatic", tracks: info?.automatic_captions || {} },
+  ];
+  const langPriority = ["vi", "vi-VN", "vi-vn", "en", "en-US", "en-us"];
+  const extPriority = ["json3", "vtt", "srv3", "srv2", "srv1", "ttml"];
+
+  for (const pool of pools) {
+    for (const lang of langPriority) {
+      const entries = Array.isArray(pool.tracks?.[lang]) ? pool.tracks[lang] : [];
+      if (!entries.length) continue;
+      const pickedByExt =
+        extPriority
+          .map((ext) => entries.find((entry) => entry?.ext === ext && entry?.url))
+          .find(Boolean) || entries.find((entry) => entry?.url);
+      if (pickedByExt) {
+        return { ...pickedByExt, lang, kind: pool.kind };
+      }
+    }
+  }
+
+  for (const pool of pools) {
+    const langs = Object.keys(pool.tracks || {});
+    for (const lang of langs) {
+      const entries = Array.isArray(pool.tracks?.[lang]) ? pool.tracks[lang] : [];
+      const picked = entries.find((entry) => entry?.url);
+      if (picked) return { ...picked, lang, kind: pool.kind };
+    }
+  }
+  return null;
+}
+
+async function fetchTranscriptLines(videoId, cookieArgs) {
+  const info = await runYtDlpJson(videoId, cookieArgs);
+  const track = pickCaptionTrack(info);
+  if (!track?.url) {
+    return { lines: [], lang: "", kind: "" };
+  }
+
+  const transcriptRes = await fetch(track.url, {
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    },
+  });
+  if (!transcriptRes.ok) {
+    throw new Error(`transcript fetch failed with status ${transcriptRes.status}`);
+  }
+
+  const isJson =
+    String(track.ext || "").toLowerCase() === "json3" ||
+    (transcriptRes.headers.get("content-type") || "").includes("application/json");
+  const lines = isJson
+    ? parseJson3Transcript(await transcriptRes.json())
+    : parseVttTranscript(await transcriptRes.text());
+  return { lines, lang: track.lang || "", kind: track.kind || "" };
+}
+
 async function getNoembedInfo(videoId) {
   const response = await fetch(
     `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`,
@@ -167,10 +340,13 @@ async function getNoembedInfo(videoId) {
 }
 
 app.get("/health", (_req, res) => {
+  const existing = ytDlpCandidates.filter((candidate) => existsSync(candidate));
   res.status(200).json({
     ok: true,
     ytdlpCommand: resolveYtDlpCommand(),
-    ytdlpBinExists: existsSync(ytDlpBin) || existsSync(ytDlpAltBin),
+    ytdlpBinExists: existing.length > 0,
+    ytdlpCandidates: existing,
+    ytdlpPackageDir,
   });
 });
 
@@ -362,6 +538,67 @@ app.get("/api/download", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Download API running on port ${PORT}`);
+app.get("/api/transcript", async (req, res) => {
+  const videoId = req.query.v;
+  const debug = req.query.debug === "1";
+  if (!videoId) {
+    return res.status(400).json({ error: "Missing video ID" });
+  }
+
+  try {
+    const { cookieArgs } = await getCookieArgs();
+    const result = await fetchTranscriptLines(videoId, cookieArgs);
+    if (!result.lines.length) {
+      return res.status(200).json({
+        transcript: "",
+        lines: [],
+        message: "Không tìm thấy bản chép lời cho video này.",
+      });
+    }
+    return res.status(200).json({
+      transcript: result.lines.map((line) => `${line.time} ${line.text}`).join("\n"),
+      lines: result.lines,
+      language: result.lang,
+      source: result.kind,
+    });
+  } catch (err) {
+    const message = String(err?.message || "");
+    return res.status(200).json({
+      transcript: "",
+      lines: [],
+      message: "Không thể lấy bản chép lời cho video này.",
+      ...(debug ? { detail: message.slice(0, 800) } : {}),
+    });
+  }
 });
+
+let activeServer = null;
+
+export async function startDownloadApi({ port = PORT, host = "127.0.0.1" } = {}) {
+  if (activeServer) return activeServer;
+  await new Promise((resolve, reject) => {
+    const server = app.listen(port, host, () => {
+      activeServer = server;
+      resolve();
+    });
+    server.on("error", reject);
+  });
+  return activeServer;
+}
+
+export async function stopDownloadApi() {
+  if (!activeServer) return;
+  await new Promise((resolve) => activeServer.close(resolve));
+  activeServer = null;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  startDownloadApi({ port: PORT, host: "0.0.0.0" })
+    .then(() => {
+      console.log(`Download API running on port ${PORT}`);
+    })
+    .catch((err) => {
+      console.error("Failed to start Download API:", err);
+      process.exit(1);
+    });
+}

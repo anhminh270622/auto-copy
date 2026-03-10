@@ -4,6 +4,7 @@ const menuItems = [
     { id: 'auto-copy', label: 'Tự động sao chép', icon: '📋' },
     { id: 'img-to-video', label: 'Ảnh thành Video', icon: '🎬' },
     { id: 'download-video', label: 'Tải Video YouTube', icon: '⬇️' },
+    { id: 'api-probe', label: 'Test API ngoài', icon: '🧪' },
 ];
 
 export default function Sidebar({

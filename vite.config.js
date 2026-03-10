@@ -19,6 +19,108 @@ function formatDuration(seconds) {
     return `${m}:${String(s).padStart(2, '0')}`
 }
 
+function formatTranscriptTime(totalSeconds) {
+    const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0))
+    const h = Math.floor(sec / 3600)
+    const m = Math.floor((sec % 3600) / 60)
+    const s = sec % 60
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function decodeHtmlEntities(input) {
+    return String(input || '')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+}
+
+function cleanTranscriptText(input) {
+    return decodeHtmlEntities(input)
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+}
+
+function parseVttTranscript(rawText) {
+    const lines = String(rawText || '').split(/\r?\n/)
+    const items = []
+    for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i].trim()
+        if (!line.includes('-->')) continue
+        const [start] = line.split('-->')
+        const parts = start.trim().split(':').map((x) => Number(x.replace(',', '.')))
+        let seconds = 0
+        if (parts.length === 3) {
+            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
+        } else if (parts.length === 2) {
+            seconds = parts[0] * 60 + parts[1]
+        } else {
+            continue
+        }
+        const textParts = []
+        for (let j = i + 1; j < lines.length; j += 1) {
+            const t = lines[j]
+            if (!t.trim()) break
+            textParts.push(t.trim())
+        }
+        const text = cleanTranscriptText(textParts.join(' '))
+        if (!text) continue
+        items.push({ time: formatTranscriptTime(seconds), text })
+    }
+    return items
+}
+
+function parseJson3Transcript(payload) {
+    const events = Array.isArray(payload?.events) ? payload.events : []
+    const items = []
+    for (const event of events) {
+        const startMs = Number(event?.tStartMs)
+        if (!Number.isFinite(startMs)) continue
+        const segs = Array.isArray(event?.segs) ? event.segs : []
+        const text = cleanTranscriptText(segs.map((seg) => seg?.utf8 || '').join(''))
+        if (!text) continue
+        items.push({
+            time: formatTranscriptTime(startMs / 1000),
+            text,
+        })
+    }
+    return items
+}
+
+function pickCaptionTrack(info) {
+    const pools = [
+        { kind: 'subtitles', tracks: info?.subtitles || {} },
+        { kind: 'automatic', tracks: info?.automatic_captions || {} },
+    ]
+    const langPriority = ['vi', 'vi-VN', 'vi-vn', 'en', 'en-US', 'en-us']
+    const extPriority = ['json3', 'vtt', 'srv3', 'srv2', 'srv1', 'ttml']
+
+    for (const pool of pools) {
+        for (const lang of langPriority) {
+            const entries = Array.isArray(pool.tracks?.[lang]) ? pool.tracks[lang] : []
+            if (!entries.length) continue
+            const pickedByExt =
+                extPriority
+                    .map((ext) => entries.find((entry) => entry?.ext === ext && entry?.url))
+                    .find(Boolean) || entries.find((entry) => entry?.url)
+            if (pickedByExt) return { ...pickedByExt, lang, kind: pool.kind }
+        }
+    }
+
+    for (const pool of pools) {
+        const langs = Object.keys(pool.tracks || {})
+        for (const lang of langs) {
+            const entries = Array.isArray(pool.tracks?.[lang]) ? pool.tracks[lang] : []
+            const picked = entries.find((entry) => entry?.url)
+            if (picked) return { ...picked, lang, kind: pool.kind }
+        }
+    }
+    return null
+}
+
 function downloadPlugin() {
     const isWin = process.platform === 'win32'
     const ytDlpBin = join(process.cwd(), 'node_modules', 'youtube-dl-exec', 'bin', isWin ? 'yt-dlp.exe' : 'yt-dlp')
@@ -187,6 +289,73 @@ function downloadPlugin() {
                         return
                     }
 
+                    if (url.pathname === '/api/transcript') {
+                        const videoId = url.searchParams.get('v')
+                        if (!videoId) {
+                            res.writeHead(400, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ error: 'Missing video ID' }))
+                            return
+                        }
+
+                        const youtubedl = (await import('youtube-dl-exec')).default
+                        let info
+                        try {
+                            info = await youtubedl(`https://www.youtube.com/watch?v=${videoId}`, {
+                                dumpSingleJson: true,
+                                noWarnings: true,
+                                noCheckCertificates: true,
+                                preferFreeFormats: true,
+                            })
+                        } catch {
+                            res.writeHead(200, { 'Content-Type': 'application/json' })
+                            res.end(
+                                JSON.stringify({
+                                    transcript: '',
+                                    lines: [],
+                                    message: 'Không thể lấy bản chép lời cho video này.',
+                                }),
+                            )
+                            return
+                        }
+
+                        const track = pickCaptionTrack(info)
+                        if (!track?.url) {
+                            res.writeHead(200, { 'Content-Type': 'application/json' })
+                            res.end(JSON.stringify({ transcript: '', lines: [], message: 'Không tìm thấy bản chép lời.' }))
+                            return
+                        }
+
+                        const transcriptRes = await fetch(track.url)
+                        if (!transcriptRes.ok) {
+                            res.writeHead(200, { 'Content-Type': 'application/json' })
+                            res.end(
+                                JSON.stringify({
+                                    transcript: '',
+                                    lines: [],
+                                    message: 'Không thể tải bản chép lời cho video này.',
+                                }),
+                            )
+                            return
+                        }
+
+                        const isJson =
+                            String(track.ext || '').toLowerCase() === 'json3' ||
+                            (transcriptRes.headers.get('content-type') || '').includes('application/json')
+                        const lines = isJson
+                            ? parseJson3Transcript(await transcriptRes.json())
+                            : parseVttTranscript(await transcriptRes.text())
+                        res.writeHead(200, { 'Content-Type': 'application/json' })
+                        res.end(
+                            JSON.stringify({
+                                transcript: lines.map((line) => `${line.time} ${line.text}`).join('\n'),
+                                lines,
+                                language: track.lang || '',
+                                source: track.kind || '',
+                            }),
+                        )
+                        return
+                    }
+
                     next()
                 } catch (err) {
                     if (!res.headersSent) {
@@ -199,6 +368,9 @@ function downloadPlugin() {
     }
 }
 
-export default defineConfig({
-    plugins: [react(), downloadPlugin()],
+export default defineConfig(() => {
+    return {
+        base: './',
+        plugins: [react(), downloadPlugin()],
+    }
 })

@@ -1,26 +1,42 @@
-# React + Vite
+# Auto Copy
 
-This is a minimal setup using **React + Vite** with HMR (Hot Module Replacement) and basic ESLint configuration.
+React + Vite app with YouTube tools and optional Electron desktop packaging.
 
-## 🔗 Demo
-
-👉 [View Demo](https://auto-copy.vercel.app/)
-
-## 🚀 Features
-
-- ⚡️ Vite for fast development
-- ⚛️ React with Fast Refresh
-- ✅ ESLint for code quality
-- 🛠️ Easily extendable
-
-## 📦 Installation
+## Run web app
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/your-repo-name.git
-cd your-repo-name
-
-# Install dependencies
 npm install
-# or
-yarn
+npm run dev
+```
+
+## Run desktop app in development
+
+The Electron app starts the download API internally at `http://127.0.0.1:8787`.
+
+```bash
+npm install
+npm run electron:dev
+```
+
+## Build Windows app
+
+Portable folder:
+
+```bash
+npm run electron:pack
+```
+
+Output:
+
+- `dist/win-unpacked/Auto Copy.exe`
+
+Installer:
+
+```bash
+npm run electron:dist
+```
+
+## Environment variables
+
+- `YT_COOKIE`: optional YouTube `cookies.txt` content for better access to restricted videos.
+- `VITE_DOWNLOAD_API_BASE`: optional external API base in web mode.
