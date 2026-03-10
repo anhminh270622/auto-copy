@@ -5,25 +5,50 @@ import CheckBox from "../checkbox/checkbox";
 const runtimeApiBase =
     typeof window !== "undefined" && window.electronApp?.apiBase ? window.electronApp.apiBase : "";
 const API_BASE = (runtimeApiBase || import.meta.env.VITE_DOWNLOAD_API_BASE || "").replace(/\/$/, "");
+const TRANSCRIPT_LANG_OPTIONS = [
+    { value: "auto", label: "Tự động (Việt -> Anh)" },
+    { value: "vi", label: "Chỉ ưu tiên tiếng Việt" },
+    { value: "en", label: "Chỉ ưu tiên tiếng Anh" },
+];
 
-async function getTranscriptWithFallback(videoId) {
-    const query = `v=${encodeURIComponent(videoId)}`;
+async function getTranscriptWithFallback(videoId, preferredLang = "auto") {
+    const params = new URLSearchParams({ v: String(videoId) });
+    if (preferredLang && preferredLang !== "auto") {
+        params.set("lang", preferredLang);
+    }
+    const query = params.toString();
     const urls = [
         `/api/transcript?${query}`,
         API_BASE ? `${API_BASE}/api/transcript?${query}` : "",
     ].filter(Boolean);
+    let lastMessage = "";
 
     for (const url of urls) {
         try {
             const response = await fetch(url);
             if (!response.ok) continue;
             const data = await response.json();
-            if (data?.transcript) return data.transcript;
+            if (data?.transcript) {
+                return {
+                    transcript: data.transcript,
+                    message: "",
+                    language: data.language || "",
+                    source: data.source || "",
+                };
+            }
+            if (data?.message) {
+                lastMessage = data.message;
+            }
         } catch {
             // Try next endpoint
         }
     }
-    return "";
+    return {
+        transcript: "",
+        message: lastMessage || "Không thể lấy bản chép lời cho video này.",
+        language: "",
+        source: "",
+    };
 }
 
 function extractVideoId(input) {
@@ -61,6 +86,9 @@ export default function AutoCopy() {
     const [loadingYoutube, setLoadingYoutube] = useState(false);
     const [thumbnailUrl, setThumbnailUrl] = useState("");
     const [channelName, setChannelName] = useState("");
+    const [transcriptLang, setTranscriptLang] = useState(() => localStorage.getItem("transcriptLang") || "auto");
+    const [transcriptHint, setTranscriptHint] = useState("");
+    const [transcriptMeta, setTranscriptMeta] = useState({ language: "", source: "" });
 
     const savedData = getSavedData();
     const [title, setTitle] = useState(savedData.title);
@@ -90,6 +118,10 @@ export default function AutoCopy() {
         localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description, copyNoDescription }));
     }, [title, content, request, description, copyNoDescription]);
 
+    useEffect(() => {
+        localStorage.setItem("transcriptLang", transcriptLang);
+    }, [transcriptLang]);
+
     const onReset = () => {
         setLastState({
             title,
@@ -102,6 +134,9 @@ export default function AutoCopy() {
             youtubeUrl,
             thumbnailUrl,
             channelName,
+            transcriptLang,
+            transcriptHint,
+            transcriptMeta,
         });
         setTitle("");
         setContent("");
@@ -111,6 +146,8 @@ export default function AutoCopy() {
         setYoutubeUrl("");
         setThumbnailUrl("");
         setChannelName("");
+        setTranscriptHint("");
+        setTranscriptMeta({ language: "", source: "" });
         setShowUndo(true);
         toast.info("Đã nhập lại. Bạn có thể hoàn tác !");
     };
@@ -127,6 +164,9 @@ export default function AutoCopy() {
             setYoutubeUrl(lastState.youtubeUrl || "");
             setThumbnailUrl(lastState.thumbnailUrl || "");
             setChannelName(lastState.channelName || "");
+            setTranscriptLang(lastState.transcriptLang || "auto");
+            setTranscriptHint(lastState.transcriptHint || "");
+            setTranscriptMeta(lastState.transcriptMeta || { language: "", source: "" });
             setShowUndo(false);
             toast.success("Đã hoàn tác thành công !");
         }
@@ -144,7 +184,7 @@ export default function AutoCopy() {
         setLoadingYoutube(true);
         try {
             const watchUrl = `https://www.youtube.com/watch?v=${id}`;
-            const transcriptPromise = getTranscriptWithFallback(id);
+            const transcriptPromise = getTranscriptWithFallback(id, transcriptLang);
             const [oembedRes, transcriptRes] = await Promise.allSettled([
                 fetch(`https://noembed.com/embed?url=${encodeURIComponent(watchUrl)}`),
                 transcriptPromise,
@@ -160,7 +200,10 @@ export default function AutoCopy() {
             const nextTitle = data?.title || "";
             const nextChannel = data?.author_name || "";
             const nextThumb = data?.thumbnail_url || `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
-            const transcriptText = transcriptRes.status === "fulfilled" ? transcriptRes.value || "" : "";
+            const transcriptData = transcriptRes.status === "fulfilled"
+                ? transcriptRes.value
+                : { transcript: "", message: "Không thể kết nối API bản chép lời.", language: "", source: "" };
+            const transcriptText = transcriptData.transcript || "";
 
             const nextContent = transcriptText.trim() || [nextChannel ? `Kênh: ${nextChannel}` : "", `Link: ${watchUrl}`]
                 .filter(Boolean)
@@ -171,8 +214,17 @@ export default function AutoCopy() {
             setChannelName(nextChannel);
             setThumbnailUrl(nextThumb);
             setYoutubeUrl(watchUrl);
-            toast.success("Đã tự điền thông tin từ link YouTube");
+            setTranscriptMeta({ language: transcriptData.language || "", source: transcriptData.source || "" });
+            if (transcriptText.trim()) {
+                setTranscriptHint("Đã lấy bản chép lời thành công.");
+                toast.success("Đã tự điền thông tin + bản chép lời");
+            } else {
+                setTranscriptHint(transcriptData.message || "Không tìm thấy bản chép lời cho video này.");
+                toast.warning(transcriptData.message || "Không tìm thấy bản chép lời, đã điền thông tin cơ bản.");
+            }
         } catch {
+            setTranscriptHint("Không lấy được thông tin từ YouTube hoặc API bản chép lời.");
+            setTranscriptMeta({ language: "", source: "" });
             toast.error("Không lấy được thông tin từ YouTube");
         } finally {
             setLoadingYoutube(false);
@@ -193,6 +245,22 @@ export default function AutoCopy() {
         <>
             <div className={`youtube-auto-section ${loadingYoutube ? "is-loading" : ""}`} aria-busy={loadingYoutube}>
                 <h3 className="title">🔗 Link YouTube</h3>
+                <div className="youtube-options-row">
+                    <label htmlFor="transcriptLang" className="youtube-options-label">Ưu tiên bản chép lời:</label>
+                    <select
+                        id="transcriptLang"
+                        className="youtube-options-select"
+                        value={transcriptLang}
+                        onChange={(e) => setTranscriptLang(e.target.value)}
+                        disabled={loadingYoutube}
+                    >
+                        {TRANSCRIPT_LANG_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
                 <input
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
@@ -209,6 +277,16 @@ export default function AutoCopy() {
                     <div className="youtube-loading-row">
                         <span className="youtube-spinner" />
                         <small className="youtube-helper">Đang gọi API và lấy thông tin video...</small>
+                    </div>
+                )}
+                {!loadingYoutube && transcriptHint && (
+                    <div className={`youtube-transcript-note ${transcriptMeta.language ? "is-ok" : "is-warn"}`}>
+                        <small>{transcriptHint}</small>
+                        {(transcriptMeta.language || transcriptMeta.source) && (
+                            <small>
+                                Ngôn ngữ: {transcriptMeta.language || "N/A"} · Nguồn: {transcriptMeta.source || "N/A"}
+                            </small>
+                        )}
                     </div>
                 )}
                 {!!thumbnailUrl && (

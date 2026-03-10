@@ -90,12 +90,18 @@ function parseJson3Transcript(payload) {
     return items
 }
 
-function pickCaptionTrack(info) {
+function pickCaptionTrack(info, preferredLang = 'auto') {
     const pools = [
         { kind: 'subtitles', tracks: info?.subtitles || {} },
         { kind: 'automatic', tracks: info?.automatic_captions || {} },
     ]
-    const langPriority = ['vi', 'vi-VN', 'vi-vn', 'en', 'en-US', 'en-us']
+    const preferred = String(preferredLang || 'auto').toLowerCase()
+    const langPriorityByPref = {
+        vi: ['vi', 'vi-VN', 'vi-vn', 'en', 'en-US', 'en-us'],
+        en: ['en', 'en-US', 'en-us', 'vi', 'vi-VN', 'vi-vn'],
+        auto: ['vi', 'vi-VN', 'vi-vn', 'en', 'en-US', 'en-us'],
+    }
+    const langPriority = langPriorityByPref[preferred] || langPriorityByPref.auto
     const extPriority = ['json3', 'vtt', 'srv3', 'srv2', 'srv1', 'ttml']
 
     for (const pool of pools) {
@@ -291,6 +297,7 @@ function downloadPlugin() {
 
                     if (url.pathname === '/api/transcript') {
                         const videoId = url.searchParams.get('v')
+                        const lang = String(url.searchParams.get('lang') || 'auto').toLowerCase()
                         if (!videoId) {
                             res.writeHead(400, { 'Content-Type': 'application/json' })
                             res.end(JSON.stringify({ error: 'Missing video ID' }))
@@ -318,10 +325,16 @@ function downloadPlugin() {
                             return
                         }
 
-                        const track = pickCaptionTrack(info)
+                        const track = pickCaptionTrack(info, lang)
                         if (!track?.url) {
                             res.writeHead(200, { 'Content-Type': 'application/json' })
-                            res.end(JSON.stringify({ transcript: '', lines: [], message: 'Không tìm thấy bản chép lời.' }))
+                            const message =
+                                lang === 'en'
+                                    ? 'Không tìm thấy bản chép lời tiếng Anh cho video này.'
+                                    : lang === 'vi'
+                                      ? 'Không tìm thấy bản chép lời tiếng Việt cho video này.'
+                                      : 'Không tìm thấy bản chép lời.'
+                            res.end(JSON.stringify({ transcript: '', lines: [], message }))
                             return
                         }
 

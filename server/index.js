@@ -261,12 +261,18 @@ function parseJson3Transcript(payload) {
   return items;
 }
 
-function pickCaptionTrack(info) {
+function pickCaptionTrack(info, preferredLang = "auto") {
   const pools = [
     { kind: "subtitles", tracks: info?.subtitles || {} },
     { kind: "automatic", tracks: info?.automatic_captions || {} },
   ];
-  const langPriority = ["vi", "vi-VN", "vi-vn", "en", "en-US", "en-us"];
+  const preferred = String(preferredLang || "auto").toLowerCase();
+  const langPriorityByPref = {
+    vi: ["vi", "vi-VN", "vi-vn", "en", "en-US", "en-us"],
+    en: ["en", "en-US", "en-us", "vi", "vi-VN", "vi-vn"],
+    auto: ["vi", "vi-VN", "vi-vn", "en", "en-US", "en-us"],
+  };
+  const langPriority = langPriorityByPref[preferred] || langPriorityByPref.auto;
   const extPriority = ["json3", "vtt", "srv3", "srv2", "srv1", "ttml"];
 
   for (const pool of pools) {
@@ -294,9 +300,9 @@ function pickCaptionTrack(info) {
   return null;
 }
 
-async function fetchTranscriptLines(videoId, cookieArgs) {
+async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto") {
   const info = await runYtDlpJson(videoId, cookieArgs);
-  const track = pickCaptionTrack(info);
+  const track = pickCaptionTrack(info, preferredLang);
   if (!track?.url) {
     return { lines: [], lang: "", kind: "" };
   }
@@ -540,6 +546,7 @@ app.get("/api/download", async (req, res) => {
 
 app.get("/api/transcript", async (req, res) => {
   const videoId = req.query.v;
+  const lang = String(req.query.lang || "auto").toLowerCase();
   const debug = req.query.debug === "1";
   if (!videoId) {
     return res.status(400).json({ error: "Missing video ID" });
@@ -547,12 +554,17 @@ app.get("/api/transcript", async (req, res) => {
 
   try {
     const { cookieArgs } = await getCookieArgs();
-    const result = await fetchTranscriptLines(videoId, cookieArgs);
+    const result = await fetchTranscriptLines(videoId, cookieArgs, lang);
     if (!result.lines.length) {
       return res.status(200).json({
         transcript: "",
         lines: [],
-        message: "Không tìm thấy bản chép lời cho video này.",
+        message:
+          lang === "en"
+            ? "Không tìm thấy bản chép lời tiếng Anh cho video này."
+            : lang === "vi"
+              ? "Không tìm thấy bản chép lời tiếng Việt cho video này."
+              : "Không tìm thấy bản chép lời cho video này.",
       });
     }
     return res.status(200).json({
