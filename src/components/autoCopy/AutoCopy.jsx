@@ -64,6 +64,41 @@ function extractVideoId(input) {
     return null;
 }
 
+async function isImageLoadable(url) {
+    return new Promise((resolve) => {
+        if (!url) {
+            resolve(false);
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            resolve(w >= 320 && h >= 180);
+        };
+        img.onerror = () => resolve(false);
+        img.referrerPolicy = "no-referrer";
+        img.src = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+    });
+}
+
+async function resolveBestThumbnail(videoId, noembedThumb) {
+    const candidates = [
+        `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+        `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
+        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        noembedThumb || "",
+        `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    ].filter(Boolean);
+
+    for (const url of candidates) {
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await isImageLoadable(url);
+        if (ok) return url;
+    }
+    return candidates[candidates.length - 1] || "";
+}
+
 export default function AutoCopy() {
     const getSavedData = () => {
         const saved = JSON.parse(localStorage.getItem("myAppData") || "{}");
@@ -199,7 +234,10 @@ export default function AutoCopy() {
 
             const nextTitle = data?.title || "";
             const nextChannel = data?.author_name || "";
-            const nextThumb = data?.thumbnail_url || `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
+            const nextThumb = await resolveBestThumbnail(
+                id,
+                data?.thumbnail_url || `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+            );
             const transcriptData = transcriptRes.status === "fulfilled"
                 ? transcriptRes.value
                 : { transcript: "", message: "Không thể kết nối API bản chép lời.", language: "", source: "" };

@@ -221,8 +221,12 @@ body,
 }
 
 .youtube-preview-thumb {
-    width: 210px;
+    width: 260px;
     max-width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    object-position: center;
+    image-rendering: auto;
     border-radius: 8px;
     border: 1px solid var(--border-color);
 }
@@ -231,7 +235,7 @@ body,
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-width: calc(100% - 230px);
+    max-width: calc(100% - 280px);
     min-width: 260px;
 }
 
