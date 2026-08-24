@@ -1,7 +1,7 @@
 {
   "name": "du-an",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -15,13 +15,16 @@
     "electron:dist": "cross-env VITE_DESKTOP_BUILD=1 npm run build && electron-builder -w"
   },
   "dependencies": {
+    "@fortune-sheet/react": "^1.0.4",
     "axios": "^1.13.5",
     "cors": "^2.8.6",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-toastify": "^11.0.5",
+    "xlsx": "^0.18.5",
     "youtube-dl-exec": "^3.1.1",
     "youtubei.js": "^16.0.1"
   },
@@ -49,11 +52,16 @@
       "en-US"
     ],
     "files": [
-      "dist/**/*",
+      "dist/index.html",
+      "dist/assets/**/*",
+      "dist/logo.png",
       "electron/**/*",
       "server/**/*",
       "package.json",
       "!**/*.map",
+      "!dist/win-unpacked/**/*",
+      "!dist/*.exe",
+      "!dist/*.blockmap",
       "!node_modules/electron/**/*",
       "!node_modules/electron-builder/**/*",
       "!node_modules/@electron/**/*",
@@ -89,6 +97,17 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "anhminh270622",
+        "repo": "auto-copy"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anhminh270622/auto-copy.git"
   }
 }

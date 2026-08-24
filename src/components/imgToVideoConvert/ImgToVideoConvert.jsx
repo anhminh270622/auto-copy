@@ -92,12 +92,22 @@ const ImageToVideoConverter = () => {
             return;
         }
 
-        let mimeType = 'video/mp4';
-        let extension = 'mp4';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = 'video/webm';
-            extension = 'webm';
+        // Ưu tiên codec H.264 (avc1) trong MP4 — Facebook yêu cầu
+        const codecPriority = [
+            { mime: 'video/mp4;codecs=avc1', ext: 'mp4' },
+            { mime: 'video/mp4', ext: 'mp4' },
+            { mime: 'video/webm;codecs=h264', ext: 'webm' },
+            { mime: 'video/webm;codecs=vp9', ext: 'webm' },
+            { mime: 'video/webm', ext: 'webm' },
+        ];
+        const picked = codecPriority.find(c => MediaRecorder.isTypeSupported(c.mime));
+        if (!picked) {
+            setError("Trình duyệt không hỗ trợ codec video nào.");
+            setProcessing(false);
+            return;
         }
+        let mimeType = picked.mime;
+        let extension = picked.ext;
         setVideoExtension(extension);
 
         const recorder = new MediaRecorder(stream, { mimeType });

@@ -1,17 +1,19 @@
 :root[data-theme="dark"] {
-    --bg-primary: #232323;
-    --bg-secondary: #3B3B3B;
-    --bg-tertiary: #2c2c2c;
-    --text-primary: #f1f1f1;
-    --text-secondary: #aaa;
-    --border-color: #444;
-    --shadow-color: rgba(0, 0, 0, 0.18);
-    --btn-delete: #e74c3c;
-    --btn-delete-hover: #c0392b;
-    --btn-copy: #27ae60;
-    --btn-copy-hover: #219150;
-    --btn-edit: #38bdf8;
-    --btn-edit-hover: #0ea5e9;
+    --bg-primary: #0f1117;
+    --bg-secondary: #1a1d2e;
+    --bg-tertiary: #252940;
+    --text-primary: #e8eaf0;
+    --text-secondary: #8b8fa7;
+    --border-color: #2e3348;
+    --shadow-color: rgba(0, 0, 0, 0.35);
+    --btn-delete: #ef4444;
+    --btn-delete-hover: #dc2626;
+    --btn-copy: #10b981;
+    --btn-copy-hover: #059669;
+    --btn-edit: #06b6d4;
+    --btn-edit-hover: #0891b2;
+    --accent-glow: rgba(6, 182, 212, 0.15);
+    --sidebar-active-bg: linear-gradient(90deg, rgba(6, 182, 212, 0.12) 0%, transparent 100%);
 }
 
 :root {
@@ -68,7 +70,8 @@ body,
 /* ===== Layout ===== */
 .app-layout {
     display: flex;
-    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .main-content {
@@ -76,15 +79,19 @@ body,
     min-width: 0;
     display: flex;
     flex-direction: column;
-    padding-top: 16px;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .content-wrapper {
-    padding: 16px 20px;
+    padding: 16px 20px 20px 20px;
     flex: 1;
     max-width: 98%;
     width: 100%;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .mobile-header {
@@ -422,13 +429,13 @@ label strong {
     position: sticky;
     top: 8px;
     float: right;
-    background: rgba(255, 255, 255, 0.9);
-    border: none;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     cursor: pointer;
     font-size: 14px;
     padding: 6px 8px;
     border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px var(--shadow-color);
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
@@ -445,18 +452,18 @@ label strong {
 .copy-icon-btn.active {
     opacity: 1;
     pointer-events: auto;
-    border: none;
+    border: 1px solid var(--border-color);
 }
 
 .copy-icon-btn:hover {
-    background: #f0f0f0;
+    background: var(--bg-tertiary);
     transform: scale(1.05);
 }
 
 .copy-icon-btn:focus,
 .copy-icon-btn:active {
     outline: none;
-    border: none;
+    border: 1px solid var(--border-color);
 }
 
 button:focus,
@@ -464,13 +471,7 @@ button:active {
     outline: none;
 }
 
-/* ===== Component Wrappers ===== */
-.downloadYtb {
-    padding: 10px;
-    box-shadow: 0 4px 24px var(--shadow-color);
-    margin-top: 30px;
-    border-radius: 8px;
-}
+/* (removed unused .downloadYtb) */
 
 /* ===== Scrollbar ===== */
 *::-webkit-scrollbar {

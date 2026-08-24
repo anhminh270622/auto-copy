@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import CheckBox from "../checkbox/checkbox";
+import "./AutoCopy.css";
 
 const runtimeApiBase =
     typeof window !== "undefined" && window.electronApp?.apiBase ? window.electronApp.apiBase : "";
@@ -100,126 +101,272 @@ async function resolveBestThumbnail(videoId, noembedThumb) {
 }
 
 export default function AutoCopy() {
-    const getSavedData = () => {
-        const saved = JSON.parse(localStorage.getItem("myAppData") || "{}");
-        return {
-            title: saved.title || "",
-            content: saved.content || "",
-            request: saved.request || "Viết bài viết",
-            description: saved.description || "không viết liền không tách dòng",
-            combined: saved.combined || "",
-            copyNoDescription: saved.copyNoDescription || ""
+    const [tabs, setTabs] = useState(() => {
+        const savedTabs = localStorage.getItem("autoCopyTabs");
+        if (savedTabs) {
+            try {
+                const parsed = JSON.parse(savedTabs);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Migrate from single myAppData or create default tab
+        const oldSaved = JSON.parse(localStorage.getItem("myAppData") || "{}");
+        const initialTab = {
+            id: "tab-" + Date.now(),
+            name: oldSaved.title ? (oldSaved.title.substring(0, 15) + "...") : "Tab 1",
+            title: oldSaved.title || "",
+            content: oldSaved.content || "",
+            request: oldSaved.request || "Viết bài viết",
+            description: oldSaved.description || "không viết liền không tách dòng",
+            youtubeUrl: oldSaved.youtubeUrl || "",
+            thumbnailUrl: oldSaved.thumbnailUrl || "",
+            channelName: oldSaved.channelName || "",
+            transcriptLang: localStorage.getItem("transcriptLang") || "auto",
+            transcriptHint: "",
+            transcriptMeta: { language: "", source: "" },
+            autoCopy: true,
+            showUndo: false,
+            lastState: null
         };
-    };
+        return [initialTab];
+    });
+
+    const [activeTabId, setActiveTabId] = useState(() => {
+        const savedActiveId = localStorage.getItem("activeTabId");
+        return savedActiveId || "";
+    });
+
+    const [editingTabId, setEditingTabId] = useState(null);
+    const [editingName, setEditingName] = useState("");
+    const [loadingTabs, setLoadingTabs] = useState({});
 
     const [editDescription, setEditDescription] = useState(false);
     const [editRequest, setEditRequest] = useState(false);
-    const [autoCopy, setAutoCopy] = useState(true);
-    const [lastState, setLastState] = useState(null);
-    const [showUndo, setShowUndo] = useState(false);
-    const [youtubeUrl, setYoutubeUrl] = useState("");
-    const [loadingYoutube, setLoadingYoutube] = useState(false);
-    const [thumbnailUrl, setThumbnailUrl] = useState("");
-    const [channelName, setChannelName] = useState("");
-    const [transcriptLang, setTranscriptLang] = useState(() => localStorage.getItem("transcriptLang") || "auto");
-    const [transcriptHint, setTranscriptHint] = useState("");
-    const [transcriptMeta, setTranscriptMeta] = useState({ language: "", source: "" });
 
-    const savedData = getSavedData();
-    const [title, setTitle] = useState(savedData.title);
-    const [content, setContent] = useState(savedData.content);
-    const [request, setRequest] = useState(savedData.request);
-    const [description, setDescription] = useState(savedData.description);
-    const [combined, setCombined] = useState(savedData.combined);
-    const [copyNoDescription, setCopyNoDescription] = useState(savedData.copyNoDescription);
-
+    // Save tabs to localStorage
     useEffect(() => {
-        if (title) {
-            const processedContent = content ? content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1") : "";
-            const text = `${request} "${title}" ${description} \n ${processedContent}`;
-            const textNoDescription = `${request} "${title}"`;
-            setCombined(text);
-            setCopyNoDescription(textNoDescription);
-            if (autoCopy) {
-                navigator.clipboard.writeText(text);
+        localStorage.setItem("autoCopyTabs", JSON.stringify(tabs));
+    }, [tabs]);
+
+    // Save activeTabId to localStorage
+    useEffect(() => {
+        if (activeTabId) {
+            localStorage.setItem("activeTabId", activeTabId);
+        }
+    }, [activeTabId]);
+
+    // Fallback activeTabId if not valid or empty
+    useEffect(() => {
+        if (tabs.length > 0) {
+            const ids = tabs.map(t => t.id);
+            if (!ids.includes(activeTabId)) {
+                setActiveTabId(tabs[0].id);
             }
         } else {
-            setCombined("");
-            setCopyNoDescription("");
+            const newId = "tab-" + Date.now();
+            setTabs([{
+                id: newId,
+                name: "Tab 1",
+                title: "",
+                content: "",
+                request: "Viết bài viết",
+                description: "không viết liền không tách dòng",
+                youtubeUrl: "",
+                thumbnailUrl: "",
+                channelName: "",
+                transcriptLang: "auto",
+                transcriptHint: "",
+                transcriptMeta: { language: "", source: "" },
+                autoCopy: true,
+                showUndo: false,
+                lastState: null
+            }]);
+            setActiveTabId(newId);
         }
-    }, [request, title, content, description, autoCopy]);
+    }, [tabs, activeTabId]);
 
+    // Reset inline edit states when changing tab
     useEffect(() => {
-        localStorage.setItem("myAppData", JSON.stringify({ title, content, request, description, copyNoDescription }));
-    }, [title, content, request, description, copyNoDescription]);
+        setEditDescription(false);
+        setEditRequest(false);
+    }, [activeTabId]);
 
+    const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0] || {};
+    const loadingYoutube = !!loadingTabs[activeTabId];
+
+    // Compute dynamic combined content
+    const processedContent = activeTab.content ? activeTab.content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1") : "";
+    const combined = activeTab.title ? `${activeTab.request || "Viết bài viết"} "${activeTab.title}" ${activeTab.description || "không viết liền không tách dòng"} \n ${processedContent}` : "";
+    const copyNoDescription = activeTab.title ? `${activeTab.request || "Viết bài viết"} "${activeTab.title}"` : "";
+
+    // Auto copy text on change
     useEffect(() => {
-        localStorage.setItem("transcriptLang", transcriptLang);
-    }, [transcriptLang]);
+        if (!activeTab || !activeTab.id) return;
+        const { title, autoCopy } = activeTab;
+        if (tabs.length < 2 && title && autoCopy) {
+            const processed = activeTab.content ? activeTab.content.replace(/(?!^)(\d{1,2}:\d{2})/g, "\n$1") : "";
+            const text = `${activeTab.request || "Viết bài viết"} "${title}" ${activeTab.description || "không viết liền không tách dòng"} \n ${processed}`;
+            navigator.clipboard.writeText(text);
+        }
+    }, [
+        activeTabId,
+        activeTab?.title,
+        activeTab?.content,
+        activeTab?.request,
+        activeTab?.description,
+        activeTab?.autoCopy,
+        tabs.length
+    ]);
+
+    const updateActiveTab = (updates) => {
+        setTabs(prevTabs => prevTabs.map(t => {
+            if (t.id === activeTabId) {
+                return { ...t, ...updates };
+            }
+            return t;
+        }));
+    };
+
+    const createNewTab = () => {
+        const newId = "tab-" + Date.now();
+        // find a unique number for naming
+        let newTabNum = 1;
+        while (tabs.some(t => t.name === `Tab ${newTabNum}`)) {
+            newTabNum++;
+        }
+        const newTab = {
+            id: newId,
+            name: `Tab ${newTabNum}`,
+            title: "",
+            content: "",
+            request: "Viết bài viết",
+            description: "không viết liền không tách dòng",
+            youtubeUrl: "",
+            thumbnailUrl: "",
+            channelName: "",
+            transcriptLang: "auto",
+            transcriptHint: "",
+            transcriptMeta: { language: "", source: "" },
+            autoCopy: true,
+            showUndo: false,
+            lastState: null
+        };
+        setTabs(prev => [...prev, newTab]);
+        setActiveTabId(newId);
+        toast.success(`Đã thêm Tab ${newTabNum}`);
+    };
+
+    const closeTab = (tabId, e) => {
+        e.stopPropagation();
+        if (tabs.length === 1) {
+            toast.warning("Không thể xóa tab duy nhất");
+            return;
+        }
+
+        const tabIndex = tabs.findIndex(t => t.id === tabId);
+        if (tabIndex === -1) return;
+
+        const newTabs = tabs.filter(t => t.id !== tabId);
+        setTabs(newTabs);
+
+        if (activeTabId === tabId) {
+            const nextActiveIndex = Math.max(0, tabIndex - 1);
+            setActiveTabId(newTabs[nextActiveIndex].id);
+        }
+
+        if (loadingTabs[tabId]) {
+            setLoadingTabs(prev => {
+                const next = { ...prev };
+                delete next[tabId];
+                return next;
+            });
+        }
+        toast.info("Đã đóng tab");
+    };
+
+    const renameTab = (tabId, newName) => {
+        if (!newName.trim()) return;
+        setTabs(prev => prev.map(t => {
+            if (t.id === tabId) {
+                return { ...t, name: newName.trim() };
+            }
+            return t;
+        }));
+    };
+
+    const handleTabDoubleClick = (tab) => {
+        setEditingTabId(tab.id);
+        setEditingName(tab.name);
+    };
 
     const onReset = () => {
-        setLastState({
-            title,
-            content,
-            request,
-            description,
-            autoCopy,
-            combined,
-            copyNoDescription,
-            youtubeUrl,
-            thumbnailUrl,
-            channelName,
-            transcriptLang,
-            transcriptHint,
-            transcriptMeta,
+        updateActiveTab({
+            lastState: {
+                title: activeTab.title || "",
+                content: activeTab.content || "",
+                request: activeTab.request || "Viết bài viết",
+                description: activeTab.description || "không viết liền không tách dòng",
+                autoCopy: activeTab.autoCopy !== false,
+                youtubeUrl: activeTab.youtubeUrl || "",
+                thumbnailUrl: activeTab.thumbnailUrl || "",
+                channelName: activeTab.channelName || "",
+                transcriptLang: activeTab.transcriptLang || "auto",
+                transcriptHint: activeTab.transcriptHint || "",
+                transcriptMeta: activeTab.transcriptMeta || { language: "", source: "" },
+            },
+            showUndo: true,
+            title: "",
+            content: "",
+            youtubeUrl: "",
+            thumbnailUrl: "",
+            channelName: "",
+            transcriptHint: "",
+            transcriptMeta: { language: "", source: "" },
+            autoCopy: true,
         });
-        setTitle("");
-        setContent("");
-        setCombined("");
-        setCopyNoDescription("");
-        setAutoCopy(true);
-        setYoutubeUrl("");
-        setThumbnailUrl("");
-        setChannelName("");
-        setTranscriptHint("");
-        setTranscriptMeta({ language: "", source: "" });
-        setShowUndo(true);
         toast.info("Đã nhập lại. Bạn có thể hoàn tác !");
     };
 
     const onUndo = () => {
-        if (lastState) {
-            setTitle(lastState.title);
-            setContent(lastState.content);
-            setRequest(lastState.request);
-            setDescription(lastState.description);
-            setCopyNoDescription(lastState.copyNoDescription);
-            setAutoCopy(lastState.autoCopy);
-            setCombined(lastState.combined);
-            setYoutubeUrl(lastState.youtubeUrl || "");
-            setThumbnailUrl(lastState.thumbnailUrl || "");
-            setChannelName(lastState.channelName || "");
-            setTranscriptLang(lastState.transcriptLang || "auto");
-            setTranscriptHint(lastState.transcriptHint || "");
-            setTranscriptMeta(lastState.transcriptMeta || { language: "", source: "" });
-            setShowUndo(false);
+        if (activeTab && activeTab.lastState) {
+            updateActiveTab({
+                title: activeTab.lastState.title,
+                content: activeTab.lastState.content,
+                request: activeTab.lastState.request,
+                description: activeTab.lastState.description,
+                autoCopy: activeTab.lastState.autoCopy,
+                youtubeUrl: activeTab.lastState.youtubeUrl,
+                thumbnailUrl: activeTab.lastState.thumbnailUrl,
+                channelName: activeTab.lastState.channelName,
+                transcriptLang: activeTab.lastState.transcriptLang,
+                transcriptHint: activeTab.lastState.transcriptHint,
+                transcriptMeta: activeTab.lastState.transcriptMeta,
+                showUndo: false,
+                lastState: null,
+            });
             toast.success("Đã hoàn tác thành công !");
         }
     };
 
     const handleFillFromYoutube = async (rawUrl) => {
         if (loadingYoutube) return;
-        const inputUrl = (rawUrl ?? youtubeUrl).trim();
+        const inputUrl = (rawUrl ?? (activeTab.youtubeUrl || "")).trim();
         const id = extractVideoId(inputUrl);
         if (!id) {
             toast.error("Link YouTube không hợp lệ");
             return;
         }
 
-        setLoadingYoutube(true);
+        setLoadingTabs(prev => ({ ...prev, [activeTabId]: true }));
         try {
             const watchUrl = `https://www.youtube.com/watch?v=${id}`;
-            const transcriptPromise = getTranscriptWithFallback(id, transcriptLang);
+            const preferredLang = activeTab.transcriptLang || "auto";
+            const transcriptPromise = getTranscriptWithFallback(id, preferredLang);
             const [oembedRes, transcriptRes] = await Promise.allSettled([
                 fetch(`https://noembed.com/embed?url=${encodeURIComponent(watchUrl)}`),
                 transcriptPromise,
@@ -247,25 +394,40 @@ export default function AutoCopy() {
                 .filter(Boolean)
                 .join("\n");
 
-            if (nextTitle) setTitle(nextTitle);
-            setContent(nextContent);
-            setChannelName(nextChannel);
-            setThumbnailUrl(nextThumb);
-            setYoutubeUrl(watchUrl);
-            setTranscriptMeta({ language: transcriptData.language || "", source: transcriptData.source || "" });
+            // Auto-rename tab based on video title or channel
+            let nextTabName = activeTab.name;
+            if (nextTitle) {
+                nextTabName = nextTitle.length > 20 ? nextTitle.substring(0, 18) + "..." : nextTitle;
+            } else if (nextChannel) {
+                nextTabName = nextChannel.length > 20 ? nextChannel.substring(0, 18) + "..." : nextChannel;
+            }
+
+            updateActiveTab({
+                name: nextTabName,
+                title: nextTitle || activeTab.title,
+                content: nextContent,
+                channelName: nextChannel,
+                thumbnailUrl: nextThumb,
+                youtubeUrl: watchUrl,
+                transcriptHint: transcriptText.trim()
+                    ? "Đã lấy bản chép lời thành công."
+                    : (transcriptData.message || "Không tìm thấy bản chép lời cho video này."),
+                transcriptMeta: { language: transcriptData.language || "", source: transcriptData.source || "" }
+            });
+
             if (transcriptText.trim()) {
-                setTranscriptHint("Đã lấy bản chép lời thành công.");
                 toast.success("Đã tự điền thông tin + bản chép lời");
             } else {
-                setTranscriptHint(transcriptData.message || "Không tìm thấy bản chép lời cho video này.");
                 toast.warning(transcriptData.message || "Không tìm thấy bản chép lời, đã điền thông tin cơ bản.");
             }
         } catch {
-            setTranscriptHint("Không lấy được thông tin từ YouTube hoặc API bản chép lời.");
-            setTranscriptMeta({ language: "", source: "" });
+            updateActiveTab({
+                transcriptHint: "Không lấy được thông tin từ YouTube hoặc API bản chép lời.",
+                transcriptMeta: { language: "", source: "" }
+            });
             toast.error("Không lấy được thông tin từ YouTube");
         } finally {
-            setLoadingYoutube(false);
+            setLoadingTabs(prev => ({ ...prev, [activeTabId]: false }));
         }
     };
 
@@ -273,14 +435,15 @@ export default function AutoCopy() {
         if (loadingYoutube) return;
         const pastedText = (e.clipboardData || window.clipboardData).getData("text");
         if (!pastedText) return;
-        setYoutubeUrl(pastedText);
+        updateActiveTab({ youtubeUrl: pastedText });
         setTimeout(() => {
             handleFillFromYoutube(pastedText);
         }, 0);
     };
 
     const handleCopyThumbnail = async () => {
-        if (!thumbnailUrl) {
+        const currentThumb = activeTab.thumbnailUrl;
+        if (!currentThumb) {
             toast.warning("Chưa có ảnh thumbnail để copy");
             return;
         }
@@ -342,7 +505,7 @@ export default function AutoCopy() {
                         }
                     };
                     img.onerror = () => reject(new Error("Ảnh không tải được"));
-                    img.src = thumbnailUrl;
+                    img.src = currentThumb;
                 });
                 const copied = await window.electronApp.copyImageFromDataUrl(dataUrl);
                 if (copied?.ok) {
@@ -355,7 +518,7 @@ export default function AutoCopy() {
         }
         if (window.electronApp?.copyImageFromUrl) {
             try {
-                const copied = await window.electronApp.copyImageFromUrl(thumbnailUrl);
+                const copied = await window.electronApp.copyImageFromUrl(currentThumb);
                 if (copied?.ok) {
                     toast.success("Đã copy ảnh thumbnail");
                     return;
@@ -366,8 +529,8 @@ export default function AutoCopy() {
         }
         try {
             const proxyPaths = [
-                `/api/thumbnail?url=${encodeURIComponent(thumbnailUrl)}`,
-                API_BASE ? `${API_BASE}/api/thumbnail?url=${encodeURIComponent(thumbnailUrl)}` : "",
+                `/api/thumbnail?url=${encodeURIComponent(currentThumb)}`,
+                API_BASE ? `${API_BASE}/api/thumbnail?url=${encodeURIComponent(currentThumb)}` : "",
             ].filter(Boolean);
             let blob = null;
             for (const url of proxyPaths) {
@@ -394,17 +557,17 @@ export default function AutoCopy() {
                 return;
             }
             if (window.electronApp?.copyText) {
-                await window.electronApp.copyText(thumbnailUrl);
+                await window.electronApp.copyText(currentThumb);
             } else {
-                await navigator.clipboard.writeText(thumbnailUrl);
+                await navigator.clipboard.writeText(currentThumb);
             }
             toast.info("Máy không hỗ trợ copy ảnh trực tiếp, đã copy link ảnh");
         } catch {
             try {
                 if (window.electronApp?.copyText) {
-                    await window.electronApp.copyText(thumbnailUrl);
+                    await window.electronApp.copyText(currentThumb);
                 } else {
-                    await navigator.clipboard.writeText(thumbnailUrl);
+                    await navigator.clipboard.writeText(currentThumb);
                 }
                 toast.info("Trình duyệt không cho ghi ảnh vào clipboard, đã copy link ảnh");
             } catch {
@@ -414,16 +577,69 @@ export default function AutoCopy() {
     };
 
     return (
-        <>
-            <div className={`youtube-auto-section ${loadingYoutube ? "is-loading" : ""}`} aria-busy={loadingYoutube}>
+        <div className="autocopy-container">
+            {/* Tabs Navigation */}
+            <div className="autocopy-tabs-container">
+                <div className="autocopy-tabs-list">
+                    {tabs.map((tab) => (
+                        <div
+                            key={tab.id}
+                            className={`autocopy-tab ${tab.id === activeTabId ? "active" : ""}`}
+                            onClick={() => setActiveTabId(tab.id)}
+                            onDoubleClick={() => handleTabDoubleClick(tab)}
+                        >
+                            {editingTabId === tab.id ? (
+                                <input
+                                    ref={(el) => el && el.focus()}
+                                    className="autocopy-tab-input"
+                                    value={editingName}
+                                    onChange={(e) => setEditingName(e.target.value)}
+                                    onBlur={() => {
+                                        renameTab(tab.id, editingName);
+                                        setEditingTabId(null);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            renameTab(tab.id, editingName);
+                                            setEditingTabId(null);
+                                        } else if (e.key === "Escape") {
+                                            setEditingTabId(null);
+                                        }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                            ) : (
+                                <span className="autocopy-tab-title">{tab.name}</span>
+                            )}
+                            <span
+                                className="autocopy-tab-close"
+                                onClick={(e) => closeTab(tab.id, e)}
+                                title="Đóng tab"
+                            >
+                                ✕
+                            </span>
+                        </div>
+                    ))}
+                </div>
+                <button
+                    className="autocopy-tab-add"
+                    onClick={createNewTab}
+                    title="Thêm tab mới"
+                >
+                    +
+                </button>
+            </div>
+
+            <div className="autocopy-scroll-content">
+                <div className={`youtube-auto-section ${loadingYoutube ? "is-loading" : ""}`} aria-busy={loadingYoutube}>
                 <h3 className="title">🔗 Link YouTube</h3>
                 <div className="youtube-options-row">
                     <label htmlFor="transcriptLang" className="youtube-options-label">Ưu tiên bản chép lời:</label>
                     <select
                         id="transcriptLang"
                         className="youtube-options-select"
-                        value={transcriptLang}
-                        onChange={(e) => setTranscriptLang(e.target.value)}
+                        value={activeTab.transcriptLang || "auto"}
+                        onChange={(e) => updateActiveTab({ transcriptLang: e.target.value })}
                         disabled={loadingYoutube}
                     >
                         {TRANSCRIPT_LANG_OPTIONS.map((opt) => (
@@ -434,8 +650,8 @@ export default function AutoCopy() {
                     </select>
                 </div>
                 <input
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                    value={activeTab.youtubeUrl || ""}
+                    onChange={(e) => updateActiveTab({ youtubeUrl: e.target.value })}
                     onPaste={handleYoutubePaste}
                     disabled={loadingYoutube}
                     onKeyDown={(e) => {
@@ -451,23 +667,23 @@ export default function AutoCopy() {
                         <small className="youtube-helper">Đang gọi API và lấy thông tin video...</small>
                     </div>
                 )}
-                {!loadingYoutube && transcriptHint && (
-                    <div className={`youtube-transcript-note ${transcriptMeta.language ? "is-ok" : "is-warn"}`}>
-                        <small>{transcriptHint}</small>
-                        {(transcriptMeta.language || transcriptMeta.source) && (
+                {!loadingYoutube && activeTab.transcriptHint && (
+                    <div className={`youtube-transcript-note ${(activeTab.transcriptMeta?.language) ? "is-ok" : "is-warn"}`}>
+                        <small>{activeTab.transcriptHint}</small>
+                        {(activeTab.transcriptMeta?.language || activeTab.transcriptMeta?.source) && (
                             <small>
-                                Ngôn ngữ: {transcriptMeta.language || "N/A"} · Nguồn: {transcriptMeta.source || "N/A"}
+                                Ngôn ngữ: {activeTab.transcriptMeta.language || "N/A"} · Nguồn: {activeTab.transcriptMeta.source || "N/A"}
                             </small>
                         )}
                     </div>
                 )}
-                {!!thumbnailUrl && (
+                {!!activeTab.thumbnailUrl && (
                     <div className="youtube-preview-row">
-                        <img src={thumbnailUrl} alt="thumbnail" className="youtube-preview-thumb" />
+                        <img src={activeTab.thumbnailUrl} alt="thumbnail" className="youtube-preview-thumb" />
                         <div className="youtube-preview-meta">
-                            <strong>{title || "Đã nhận thông tin video"}</strong>
-                            {channelName ? <small>Kênh: {channelName}</small> : null}
-                            <small>Link: {youtubeUrl}</small>
+                            <strong>{activeTab.title || "Đã nhận thông tin video"}</strong>
+                            {activeTab.channelName ? <small>Kênh: {activeTab.channelName}</small> : null}
+                            <small>Link: {activeTab.youtubeUrl}</small>
                             <div className="youtube-preview-actions">
                                 <button className="btn-copy" onClick={handleCopyThumbnail}>
                                     🖼️ Copy ảnh thumbnail
@@ -486,8 +702,8 @@ export default function AutoCopy() {
                             <div className="flex-between">
                                 <textarea
                                     rows={2}
-                                    value={request}
-                                    onChange={(e) => setRequest(e.target.value)}
+                                    value={activeTab.request || "Viết bài viết"}
+                                    onChange={(e) => updateActiveTab({ request: e.target.value })}
                                 />
                                 <button className="btn-copy" onClick={() => {
                                     setEditRequest(false);
@@ -498,7 +714,7 @@ export default function AutoCopy() {
                             </div>
                         ) : (
                             <div className="flex-between">
-                                <p>{request}</p>
+                                <p>{activeTab.request || "Viết bài viết"}</p>
                                 <button className="btn-edit" onClick={() => setEditRequest(true)}>✏️ Edit</button>
                             </div>
                         )}
@@ -507,8 +723,8 @@ export default function AutoCopy() {
                         <strong>Tiêu đề bài viết:</strong>
                         <textarea
                             rows={3}
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
+                            value={activeTab.title || ""}
+                            onChange={(e) => updateActiveTab({ title: e.target.value })}
                             style={{ minHeight: "60px" }}
                             placeholder="Vui lòng nhập tiêu đề bài viết"
                         />
@@ -517,8 +733,8 @@ export default function AutoCopy() {
                         <strong>Nội dung:</strong>
                         <textarea
                             rows={5}
-                            value={content}
-                            onChange={(e) => setContent(e.target.value)}
+                            value={activeTab.content || ""}
+                            onChange={(e) => updateActiveTab({ content: e.target.value })}
                             style={{ minHeight: "100px" }}
                             placeholder="Vui lòng nhập nội dung bài viết"
                         />
@@ -529,8 +745,8 @@ export default function AutoCopy() {
                             <div className="flex-between">
                                 <textarea
                                     rows={2}
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
+                                    value={activeTab.description || "không viết liền không tách dòng"}
+                                    onChange={(e) => updateActiveTab({ description: e.target.value })}
                                 />
                                 <button className="btn-copy" onClick={() => {
                                     setEditDescription(false);
@@ -541,7 +757,7 @@ export default function AutoCopy() {
                             </div>
                         ) : (
                             <div className="flex-between">
-                                <p>{description}</p>
+                                <p>{activeTab.description || "không viết liền không tách dòng"}</p>
                                 <button className="btn-edit" onClick={() => setEditDescription(true)}>✏️ Edit</button>
                             </div>
                         )}
@@ -549,17 +765,20 @@ export default function AutoCopy() {
                     <div style={{ marginBottom: 10 }}>
                         <label className="checkbox">
                             <CheckBox
-                                checked={autoCopy}
+                                checked={tabs.length < 2 && activeTab.autoCopy !== false}
+                                disabled={tabs.length >= 2}
                                 onChange={() => {
-                                    setAutoCopy(!autoCopy);
-                                    if (autoCopy) {
+                                    if (tabs.length >= 2) return;
+                                    const nextVal = !(activeTab.autoCopy !== false);
+                                    updateActiveTab({ autoCopy: nextVal });
+                                    if (!nextVal) {
                                         toast.warning("Đã tắt tự động sao chép");
                                     } else {
                                         toast.success("Đã bật tự động sao chép");
                                     }
                                 }}
                             />
-                            Tự động sao chép khi nhập đủ thông tin
+                            Tự động sao chép khi nhập đủ thông tin {tabs.length >= 2 && <span style={{ color: "var(--text-secondary)", fontSize: "0.85em", marginLeft: 4 }}>(tạm tắt khi có từ 2 tab trở lên)</span>}
                         </label>
                     </div>
                 </div>
@@ -597,15 +816,17 @@ export default function AutoCopy() {
                     </div>
                 </div>
             </div>
-            <div style={{ marginTop: 10, marginBottom: 10, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            </div>
+
+            <div className="autocopy-actions-bar">
                 <button
-                    disabled={!(title || content)}
-                    className={(title || content) ? "btn-delete" : "btn-disable"}
+                    disabled={!(activeTab.title || activeTab.content)}
+                    className={(activeTab.title || activeTab.content) ? "btn-delete" : "btn-disable"}
                     onClick={onReset}
                 >
                     🔁 Nhập lại
                 </button>
-                {!autoCopy && (title && content) && (
+                {((activeTab.autoCopy === false) || tabs.length >= 2) && (activeTab.title && activeTab.content) && (
                     <button
                         className="btn-copy"
                         onClick={() => {
@@ -616,12 +837,12 @@ export default function AutoCopy() {
                         📋 Copy kết quả
                     </button>
                 )}
-                {showUndo && (
+                {activeTab.showUndo && (
                     <button className="btn-edit" onClick={onUndo}>
                         ⬅️ Hoàn tác
                     </button>
                 )}
             </div>
-        </>
+        </div>
     );
 }

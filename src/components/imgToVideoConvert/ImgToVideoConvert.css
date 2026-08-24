@@ -67,6 +67,23 @@
     border: 1px solid var(--border-color);
 }
 
+.button-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.button-secondary:hover:not(:disabled) {
+    background: var(--border-color);
+}
+
+.button-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .upload-btn:hover {
     background: var(--btn-copy-hover);
 }

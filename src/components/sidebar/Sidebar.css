@@ -119,9 +119,10 @@
 }
 
 .sidebar-item.active {
-    background: var(--bg-tertiary);
-    border-left-color: var(--btn-copy);
+    background: var(--sidebar-active-bg, var(--bg-tertiary));
+    border-left-color: var(--btn-edit);
     font-weight: 600;
+    color: var(--btn-edit);
 }
 
 .sidebar-icon {

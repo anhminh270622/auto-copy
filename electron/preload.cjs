@@ -5,4 +5,6 @@ contextBridge.exposeInMainWorld("electronApp", {
   copyText: (text) => ipcRenderer.invoke("clipboard:copy-text", text),
   copyImageFromUrl: (imageUrl) => ipcRenderer.invoke("clipboard:copy-image-from-url", imageUrl),
   copyImageFromDataUrl: (dataUrl) => ipcRenderer.invoke("clipboard:copy-image-from-data-url", dataUrl),
+  saveFile: (options, dataBuffer) => ipcRenderer.invoke("file:save", options, dataBuffer),
+  saveFileBase64: (options, base64Data) => ipcRenderer.invoke("file:save-base64", options, base64Data),
 });

@@ -1,0 +1,198 @@
+.sheet-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+}
+
+.file-tabs-container {
+    display: flex;
+    align-items: center;
+    background: #f0f0f0;
+    padding: 6px 10px;
+    gap: 6px;
+    border-bottom: 1px solid #ddd;
+    overflow-x: auto;
+}
+
+[data-theme="dark"] .file-tabs-container {
+    background: #1e1e1e;
+    border-bottom: 1px solid #333;
+}
+
+.file-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #888;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.file-tab:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+[data-theme="dark"] .file-tab {
+    color: #888;
+}
+
+[data-theme="dark"] .file-tab:hover {
+    background: rgba(255,255,255,0.06);
+}
+
+.file-tab.active {
+    background: #fff;
+    color: #1a73e8;
+    border-color: #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+[data-theme="dark"] .file-tab.active {
+    background: #2d2d2d;
+    color: #4a9eff;
+    border-color: #444;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.file-tab-title::before {
+    content: "📄";
+    margin-right: 4px;
+    font-size: 12px;
+}
+
+.file-tab-close {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 9px;
+    width: 16px;
+    min-width: 16px;
+    max-width: 16px;
+    height: 16px;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.file-tab-close:hover {
+    background: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+}
+
+[data-theme="dark"] .file-tab-close:hover {
+    background: rgba(220, 53, 69, 0.25);
+    color: #ff6b6b;
+}
+
+.add-file-btn {
+    background: transparent;
+    border: 1px dashed #ccc;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.add-file-btn:hover {
+    border-color: #1a73e8;
+    color: #1a73e8;
+    background: rgba(26, 115, 232, 0.06);
+}
+
+[data-theme="dark"] .add-file-btn {
+    border-color: #555;
+    color: #888;
+}
+
+[data-theme="dark"] .add-file-btn:hover {
+    border-color: #4a9eff;
+    color: #4a9eff;
+    background: rgba(74, 158, 255, 0.1);
+}
+
+.sheet-toolbar-custom {
+    padding: 8px 16px;
+    display: flex;
+    gap: 10px;
+    background: var(--bg-primary, #fff);
+    border-bottom: 1px solid #ddd;
+}
+
+[data-theme="dark"] .sheet-toolbar-custom {
+    background: #1e1e1e;
+    border-bottom: 1px solid #333;
+}
+
+.export-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    color: white;
+}
+
+.export-btn.excel {
+    background-color: #217346;
+}
+
+.export-btn.json {
+    background-color: #4a86e8;
+}
+
+.export-btn.import-btn {
+    background-color: #fbbc05;
+    color: #333;
+    display: inline-flex;
+    align-items: center;
+}
+
+.export-btn.clear-btn {
+    background-color: #ea4335;
+}
+
+.sheet-container {
+    width: 100%;
+    flex: 1;
+    position: relative;
+    box-sizing: border-box;
+    overflow: hidden;
+    background-color: #fff;
+}
+
+div[id^="luckysheet"], 
+div[class*="luckysheet"],
+div[class*="fortune"] {
+    color: #333 !important;
+}
+
+[data-theme="dark"] .sheet-container {
+    background: #fff;
+}
+
+[data-theme="dark"] .sheet-container {
+    background: #fff;
+}

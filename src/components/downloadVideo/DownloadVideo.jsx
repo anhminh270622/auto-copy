@@ -96,16 +96,21 @@ const DownloadVideo = () => {
 
     const getBadgeLabel = (fmt) => {
         if (fmt.hasVideo && fmt.hasAudio) return "Video + Audio";
-        if (fmt.hasVideo) return "Video";
-        return "Audio";
+        if (fmt.hasVideo) return "Video Only";
+        return "Audio Only";
     };
+
+    const hasData = videoInfo || formats.length > 0;
 
     return (
         <div className="dl-page">
-            <h1 className="dl-title">Tải video YouTube</h1>
-            <p className="dl-subtitle">Dán link video YouTube vào ô bên dưới để tải về máy</p>
+            <div className="dl-header">
+                <h1 className="dl-title">Tải video YouTube</h1>
+                <p className="dl-subtitle">Tải video độ phân giải cao hoặc âm thanh MP3 nhanh chóng</p>
+            </div>
 
-            <div className="dl-card">
+            {/* Input dán Link (Luôn cố định phía trên) */}
+            <div className="dl-input-card">
                 <div className="dl-input-row">
                     <div className="dl-input-wrap">
                         <MdLink className="dl-input-icon" />
@@ -114,10 +119,11 @@ const DownloadVideo = () => {
                             value={url}
                             onChange={(e) => { setUrl(e.target.value); setError(null); }}
                             onKeyDown={(e) => e.key === "Enter" && handleFetch()}
-                            placeholder="https://youtube.com/watch?v=..."
+                            placeholder="Dán link video YouTube vào đây (vd: https://youtube.com/watch?v=...)"
                             className="dl-input"
+                            disabled={loading}
                         />
-                        {url && (
+                        {url && !loading && (
                             <button
                                 onClick={() => { setUrl(""); setError(null); }}
                                 className="dl-clear-btn"
@@ -126,28 +132,27 @@ const DownloadVideo = () => {
                             </button>
                         )}
                     </div>
-                    <button onClick={handlePaste} className="dl-paste-btn" title="Dán từ clipboard">
+                    <button onClick={handlePaste} disabled={loading} className="dl-paste-btn" title="Dán từ clipboard">
                         <MdContentPaste />
                     </button>
+                    <button
+                        onClick={handleFetch}
+                        disabled={!url.trim() || loading}
+                        className="dl-fetch-btn"
+                    >
+                        {loading ? (
+                            <>
+                                <span className="dl-spinner" />
+                                Đang quét...
+                            </>
+                        ) : (
+                            <>
+                                <MdDownload className="dl-fetch-icon" />
+                                Quét link
+                            </>
+                        )}
+                    </button>
                 </div>
-
-                <button
-                    onClick={handleFetch}
-                    disabled={!url.trim() || loading}
-                    className="dl-fetch-btn"
-                >
-                    {loading ? (
-                        <>
-                            <span className="dl-spinner" />
-                            Đang lấy thông tin...
-                        </>
-                    ) : (
-                        <>
-                            <MdDownload className="dl-fetch-icon" />
-                            Lấy link tải
-                        </>
-                    )}
-                </button>
 
                 {error && (
                     <div className="dl-error">
@@ -156,58 +161,108 @@ const DownloadVideo = () => {
                 )}
             </div>
 
-            {videoInfo && (
-                <div className="dl-card dl-video-info">
-                    <img src={videoInfo.thumbnail} alt="" className="dl-thumb" />
-                    <div className="dl-video-meta">
-                        <h3 className="dl-video-title">{videoInfo.title}</h3>
-                        <p className="dl-video-channel">{videoInfo.channel}</p>
-                        {videoInfo.duration && (
-                            <p className="dl-video-duration">{videoInfo.duration}</p>
-                        )}
+            {/* Phần hiển thị nội dung bên dưới (Cuộn độc lập nếu tràn) */}
+            {!hasData ? (
+                <div className="dl-empty-state">
+                    <svg viewBox="0 0 200 200" className="dl-empty-svg">
+                        <circle cx="100" cy="100" r="70" fill="url(#circle-grad)" opacity="0.1" />
+                        <g className="dl-svg-cloud">
+                            <path d="M55 125 A 20 20 0 0 1 70 85 A 28 28 0 0 1 130 85 A 20 20 0 0 1 145 125 Z" fill="url(#cloud-grad)" />
+                        </g>
+                        <g className="dl-svg-arrow">
+                            <path d="M100 90 L100 135 M88 123 L100 135 L112 123" stroke="url(#arrow-grad)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        </g>
+                        <defs>
+                            <linearGradient id="circle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="var(--btn-edit)" />
+                                <stop offset="100%" stopColor="var(--btn-copy)" />
+                            </linearGradient>
+                            <linearGradient id="cloud-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="#d1d5db" />
+                                <stop offset="100%" stopColor="#9ca3af" />
+                            </linearGradient>
+                            <linearGradient id="arrow-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="var(--btn-edit)" />
+                                <stop offset="100%" stopColor="#3ea6ff" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div className="dl-empty-title">Chờ dán link video</div>
+                    <div className="dl-empty-desc">
+                        Hãy dán đường dẫn video YouTube hợp lệ vào thanh tìm kiếm phía trên để lấy danh sách chất lượng video và âm thanh.
                     </div>
                 </div>
-            )}
-
-            {formats.length > 0 && (
-                <div className="dl-card dl-formats-card">
-                    <div className="dl-formats-header">
-                        <h2>Chọn chất lượng</h2>
-                    </div>
-                    <div className="dl-formats-list">
-                        {formats.map((fmt) => (
-                            <button
-                                key={fmt.format_id}
-                                onClick={() => startDownload(fmt)}
-                                disabled={downloading === fmt.format_id}
-                                className="dl-format-item"
+            ) : (
+                <div className="dl-main-row">
+                    {/* Cột trái: Thông tin Video */}
+                    {videoInfo && (
+                        <div className="dl-col-left">
+                            <div className="dl-preview-wrap">
+                                <img src={videoInfo.thumbnail} alt="" className="dl-thumb" />
+                                {videoInfo.duration && (
+                                    <span className="dl-duration-tag">{videoInfo.duration}</span>
+                                )}
+                            </div>
+                            <div className="dl-video-meta">
+                                <h3 className="dl-video-title" title={videoInfo.title}>{videoInfo.title}</h3>
+                                <p className="dl-video-channel">📺 Kênh: {videoInfo.channel}</p>
+                            </div>
+                            <a
+                                href={`https://www.youtube.com/watch?v=${videoId}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="dl-yt-btn"
                             >
-                                <div className="dl-format-left">
-                                    <span className={getBadgeClass(fmt)}>
-                                        {getBadgeLabel(fmt)}
-                                    </span>
-                                    <div className="dl-format-detail">
-                                        <span className="dl-format-quality">{fmt.quality}</span>
-                                        <span className="dl-format-meta">
-                                            {fmt.ext?.toUpperCase()} · {fmt.size}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="dl-format-action">
-                                    {downloading === fmt.format_id ? (
-                                        <span className="dl-spinner dl-spinner-small" />
-                                    ) : (
-                                        <MdDownload className="dl-format-dl-icon" />
-                                    )}
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                    <div className="dl-formats-footer">
-                        <button onClick={reset} className="dl-reset-btn">
-                            Tải video khác
-                        </button>
-                    </div>
+                                🌐 Xem trên YouTube
+                            </a>
+                        </div>
+                    )}
+
+                    {/* Cột phải: Chọn chất lượng */}
+                    {formats.length > 0 && (
+                        <div className="dl-col-right">
+                            <div className="dl-formats-header">
+                                <h2>Lựa chọn chất lượng tải về</h2>
+                            </div>
+                            <div className="dl-formats-scroll">
+                                {formats.map((fmt) => (
+                                    <button
+                                        key={fmt.format_id}
+                                        onClick={() => startDownload(fmt)}
+                                        disabled={downloading === fmt.format_id}
+                                        className="dl-format-item"
+                                    >
+                                        <div className="dl-format-left">
+                                            <span className={getBadgeClass(fmt)}>
+                                                {getBadgeLabel(fmt)}
+                                            </span>
+                                            <div className="dl-format-detail">
+                                                <span className="dl-format-quality">{fmt.quality}</span>
+                                                <span className="dl-format-meta">
+                                                    Đuôi {fmt.ext?.toUpperCase()} · Dung lượng: {fmt.size}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="dl-format-action">
+                                            {downloading === fmt.format_id ? (
+                                                <span className="dl-spinner dl-spinner-small" />
+                                            ) : (
+                                                <MdDownload className="dl-format-dl-icon" />
+                                            )}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="dl-formats-footer">
+                                <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                                    Tìm thấy {formats.length} định dạng tải
+                                </span>
+                                <button onClick={reset} className="dl-reset-btn">
+                                    🔁 Tải video khác
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

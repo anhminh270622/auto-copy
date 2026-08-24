@@ -6,6 +6,7 @@ const menuItems = [
     { id: 'auto-copy', label: 'Tự động sao chép', icon: '📋' },
     { id: 'img-to-video', label: 'Ảnh thành Video', icon: '🎬' },
     { id: 'download-video', label: 'Tải Video YouTube', icon: '⬇️' },
+    { id: 'sheet-note', label: 'Ghi chú (Sheet)', icon: '📝' },
 ];
 
 export default function Sidebar({

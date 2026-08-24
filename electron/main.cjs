@@ -1,6 +1,8 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, clipboard, ipcMain, nativeImage } = require("electron");
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage, dialog } = require("electron");
+const fs = require("node:fs");
+const { autoUpdater } = require("electron-updater");
 
 let stopApi = null;
 
@@ -40,6 +42,7 @@ app.whenReady().then(async () => {
   try {
     await startEmbeddedApi();
     createWindow();
+    setupAutoUpdater();
   } catch (err) {
     console.error("Failed to boot desktop app:", err);
     app.quit();
@@ -98,3 +101,86 @@ ipcMain.handle("clipboard:copy-image-from-data-url", async (_event, dataUrl) => 
   clipboard.writeImage(image);
   return { ok: true };
 });
+
+ipcMain.handle("file:save", async (_event, options, dataBuffer) => {
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: options.title || "Save File",
+    defaultPath: options.defaultPath,
+    filters: options.filters
+  });
+  if (canceled || !filePath) return { ok: false };
+  fs.writeFileSync(filePath, Buffer.from(dataBuffer));
+  return { ok: true, filePath };
+});
+
+ipcMain.handle("file:save-base64", async (_event, options, base64Data) => {
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: options.title || "Save File",
+    defaultPath: options.defaultPath,
+    filters: options.filters
+  });
+  if (canceled || !filePath) return { ok: false };
+  fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+  return { ok: true, filePath };
+});
+
+// ============ AUTO UPDATE ============
+function setupAutoUpdater() {
+  // Không check update khi đang chạy dev
+  if (process.env.VITE_DEV_SERVER_URL) return;
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-available", (info) => {
+    dialog.showMessageBox({
+      type: "info",
+      title: "Cập nhật mới",
+      message: `Phiên bản ${info.version} đã sẵn sàng!`,
+      detail: "Bạn có muốn tải và cài đặt bản cập nhật mới không?",
+      buttons: ["Cập nhật ngay", "Để sau"],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.downloadUpdate();
+      }
+    });
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.log("App đang ở phiên bản mới nhất.");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      win.setProgressBar(progress.percent / 100);
+    }
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.setProgressBar(-1);
+
+    dialog.showMessageBox({
+      type: "info",
+      title: "Cập nhật đã sẵn sàng",
+      message: "Bản cập nhật đã tải xong. Khởi động lại ứng dụng để hoàn tất?",
+      buttons: ["Khởi động lại", "Để sau"],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall();
+      }
+    });
+  });
+
+  autoUpdater.on("error", (err) => {
+    console.error("Lỗi khi kiểm tra cập nhật:", err);
+  });
+
+  // Kiểm tra cập nhật khi mở app
+  autoUpdater.checkForUpdates();
+}

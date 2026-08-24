@@ -6,6 +6,7 @@ import Sidebar from "./components/sidebar/Sidebar.jsx";
 import AutoCopy from "./components/autoCopy/AutoCopy.jsx";
 import ImageToVideoConverter from "./components/imgToVideoConvert/ImgToVideoConvert.jsx";
 import DownloadVideo from "./components/downloadVideo/DownloadVideo.jsx";
+import SheetNote from "./components/sheetNote/SheetNote.jsx";
 
 export default function App() {
     const [activeTab, setActiveTab] = useState(() => {
@@ -16,7 +17,13 @@ export default function App() {
         return localStorage.getItem('sidebarCollapsed') === 'true';
     });
     const [theme, setTheme] = useState(() => {
-        return localStorage.getItem('theme') || 'light';
+        // Migrate existing users to the new dark default
+        if (!localStorage.getItem('theme_v2')) {
+            localStorage.setItem('theme_v2', '1');
+            localStorage.setItem('theme', 'dark');
+            return 'dark';
+        }
+        return localStorage.getItem('theme') || 'dark';
     });
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -50,6 +57,8 @@ export default function App() {
                 return <ImageToVideoConverter />;
             case 'download-video':
                 return <DownloadVideo />;
+            case 'sheet-note':
+                return <SheetNote />;
             default:
                 return <AutoCopy />;
         }
