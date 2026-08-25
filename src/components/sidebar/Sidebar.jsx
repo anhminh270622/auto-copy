@@ -59,8 +59,17 @@ export default function Sidebar({
                 </nav>
 
                 <div className="sidebar-footer">
-                    <button className="sidebar-theme-btn" onClick={onToggleTheme}>
-                        {theme === 'dark' ? '☀️ Chế độ sáng' : '🌙 Chế độ tối'}
+                    <button
+                        className="sidebar-theme-btn"
+                        onClick={onToggleTheme}
+                        title={theme === 'dark' ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'}
+                    >
+                        <span className="sidebar-theme-icon" aria-hidden="true">
+                            {theme === 'dark' ? '☀️' : '🌙'}
+                        </span>
+                        <span className="sidebar-theme-label">
+                            {theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+                        </span>
                     </button>
                 </div>
             </aside>

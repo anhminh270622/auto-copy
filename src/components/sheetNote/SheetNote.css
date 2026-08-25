@@ -3,21 +3,21 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
+    min-height: 0;
+    flex: 1;
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #333);
 }
 
 .file-tabs-container {
     display: flex;
     align-items: center;
-    background: #f0f0f0;
+    background: var(--bg-secondary, #f0f0f0);
     padding: 6px 10px;
     gap: 6px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border-color, #ddd);
     overflow-x: auto;
-}
-
-[data-theme="dark"] .file-tabs-container {
-    background: #1e1e1e;
-    border-bottom: 1px solid #333;
+    flex-shrink: 0;
 }
 
 .file-tab {
@@ -30,7 +30,7 @@
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    color: #888;
+    color: var(--text-secondary, #888);
     border: 1px solid transparent;
     transition: all 0.15s ease;
     white-space: nowrap;
@@ -38,29 +38,18 @@
 }
 
 .file-tab:hover {
-    background: rgba(0,0,0,0.05);
-}
-
-[data-theme="dark"] .file-tab {
-    color: #888;
-}
-
-[data-theme="dark"] .file-tab:hover {
-    background: rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--text-primary, #000) 6%, transparent);
 }
 
 .file-tab.active {
-    background: #fff;
+    background: var(--bg-primary, #fff);
     color: #1a73e8;
-    border-color: #e0e0e0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-color: var(--border-color, #e0e0e0);
+    box-shadow: 0 1px 3px var(--shadow-color, rgba(0, 0, 0, 0.08));
 }
 
 [data-theme="dark"] .file-tab.active {
-    background: #2d2d2d;
     color: #4a9eff;
-    border-color: #444;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .file-tab-title::before {
@@ -72,7 +61,7 @@
 .file-tab-close {
     background: transparent;
     border: none;
-    color: #aaa;
+    color: var(--text-secondary, #aaa);
     font-size: 9px;
     width: 16px;
     min-width: 16px;
@@ -87,6 +76,7 @@
     transition: all 0.15s ease;
     line-height: 1;
     flex-shrink: 0;
+    box-shadow: none;
 }
 
 .file-tab-close:hover {
@@ -94,36 +84,28 @@
     color: #dc3545;
 }
 
-[data-theme="dark"] .file-tab-close:hover {
-    background: rgba(220, 53, 69, 0.25);
-    color: #ff6b6b;
-}
-
 .add-file-btn {
     background: transparent;
-    border: 1px dashed #ccc;
-    color: #888;
+    border: 1px dashed var(--border-color, #ccc);
+    color: var(--text-secondary, #888);
     font-size: 16px;
     cursor: pointer;
     width: 32px;
     height: 32px;
+    min-width: 32px;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
     flex-shrink: 0;
+    box-shadow: none;
 }
 
 .add-file-btn:hover {
     border-color: #1a73e8;
     color: #1a73e8;
     background: rgba(26, 115, 232, 0.06);
-}
-
-[data-theme="dark"] .add-file-btn {
-    border-color: #555;
-    color: #888;
 }
 
 [data-theme="dark"] .add-file-btn:hover {
@@ -133,26 +115,28 @@
 }
 
 .sheet-toolbar-custom {
-    padding: 8px 16px;
+    padding: 6px 10px;
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
     background: var(--bg-primary, #fff);
-    border-bottom: 1px solid #ddd;
-}
-
-[data-theme="dark"] .sheet-toolbar-custom {
-    background: #1e1e1e;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-color, #ddd);
 }
 
 .export-btn {
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 5px 10px;
+    font-size: 12px;
     border-radius: 4px;
     border: none;
     cursor: pointer;
     font-weight: 500;
     color: white;
+    line-height: 1.3;
+    white-space: nowrap;
+    min-width: 0;
+    box-shadow: none;
 }
 
 .export-btn.excel {
@@ -170,29 +154,111 @@
     align-items: center;
 }
 
+.export-btn.autofit-btn {
+    background-color: #6c5ce7;
+}
+
+.export-btn.status-btn {
+    background-color: #e67e22;
+}
+
+.export-btn.freeze-btn {
+    background-color: #16a085;
+}
+
+.export-btn.clean-html-btn {
+    background-color: #795548;
+}
+
+.export-btn.import-excel-btn {
+    background-color: #27ae60;
+    display: inline-flex;
+    align-items: center;
+}
+
 .export-btn.clear-btn {
     background-color: #ea4335;
 }
 
 .sheet-container {
     width: 100%;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     position: relative;
     box-sizing: border-box;
     overflow: hidden;
-    background-color: #fff;
+    background-color: var(--bg-primary, #fff);
 }
 
-div[id^="luckysheet"], 
-div[class*="luckysheet"],
-div[class*="fortune"] {
-    color: #333 !important;
+/* Univer fill toàn bộ vùng còn lại */
+.sheet-container .univer-host {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
 }
 
-[data-theme="dark"] .sheet-container {
-    background: #fff;
+/* Chỉ ép layout root — không đụng editor/overlay con */
+.sheet-container .univer-host > div:first-child {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
 }
 
-[data-theme="dark"] .sheet-container {
-    background: #fff;
+/* Canvas phải nhận click để thoát edit / chọn ô khác */
+.sheet-container .univer-host canvas {
+    pointer-events: auto !important;
+}
+
+/*
+ * Đồng bộ với data-theme của app (ưu tiên hơn class univer-dark bị sót).
+ * Ô tên ô A1 dùng dark:!univer-bg-gray-900 → dễ bị nền đen khi theme sáng.
+ */
+[data-theme="light"] .univer-host [data-u-comp="defined-name"] input,
+[data-theme="light"] .univer-host [data-u-comp="formula-bar"] input {
+    background-color: #ffffff !important;
+    color: #1f2329 !important;
+    border-color: #e5e7eb !important;
+}
+
+[data-theme="light"] .univer-host [data-u-comp="defined-name"],
+[data-theme="light"] .univer-host [data-u-comp="formula-bar"] {
+    background-color: #ffffff !important;
+    color: #1f2329 !important;
+    border-color: #e5e7eb !important;
+}
+
+[data-theme="light"] .univer-host [data-u-comp="defined-name"] a {
+    color: #6b7280 !important;
+}
+
+[data-theme="dark"] .univer-host [data-u-comp="defined-name"] input,
+[data-theme="dark"] .univer-host [data-u-comp="formula-bar"] input {
+    background-color: #111827 !important;
+    color: #f3f4f6 !important;
+}
+
+/* Chế độ sáng: chữ toolbar / dropdown */
+[data-theme="light"] .univer-host {
+    color: #1f2329;
+}
+
+[data-theme="light"] [data-radix-popper-content-wrapper],
+[data-theme="light"] [class*="univer-"][class*="popup"],
+[data-theme="light"] [class*="univer-"][class*="dropdown"] {
+    color: #1f2329 !important;
+}
+
+[data-theme="light"] [data-radix-popper-content-wrapper] button,
+[data-theme="light"] [class*="univer-"][class*="popup"] button,
+[data-theme="light"] [class*="univer-"][class*="dropdown"] button {
+    color: #1f2329 !important;
+}
+
+[data-theme="dark"] [data-radix-popper-content-wrapper],
+[data-theme="dark"] [class*="univer-"][class*="popup"],
+[data-theme="dark"] [class*="univer-"][class*="dropdown"] {
+    color: #e8eaf0;
 }

@@ -58,7 +58,7 @@ export default function App() {
             case 'download-video':
                 return <DownloadVideo />;
             case 'sheet-note':
-                return <SheetNote />;
+                return <SheetNote theme={theme} />;
             default:
                 return <AutoCopy />;
         }
@@ -85,7 +85,7 @@ export default function App() {
                         </button>
                         <span className="mobile-title">Auto Copy</span>
                     </div>
-                    <div className="content-wrapper">
+                    <div className={`content-wrapper${activeTab === 'sheet-note' ? ' content-wrapper--sheet' : ''}`}>
                         {renderContent()}
                     </div>
                 </main>
