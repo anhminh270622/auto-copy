@@ -26,6 +26,8 @@ export default function App() {
         return localStorage.getItem('theme') || 'dark';
     });
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    // Giữ sheet trong DOM sau lần mở đầu — đổi menu không mất scroll/ô đang chọn
+    const [sheetMounted, setSheetMounted] = useState(() => activeTab === 'sheet-note');
 
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
@@ -34,6 +36,7 @@ export default function App() {
 
     useEffect(() => {
         localStorage.setItem('activeTab', activeTab);
+        if (activeTab === 'sheet-note') setSheetMounted(true);
     }, [activeTab]);
 
     useEffect(() => {
@@ -49,7 +52,7 @@ export default function App() {
         setSidebarOpen(false);
     };
 
-    const renderContent = () => {
+    const renderOtherContent = () => {
         switch (activeTab) {
             case 'auto-copy':
                 return <AutoCopy />;
@@ -57,12 +60,12 @@ export default function App() {
                 return <ImageToVideoConverter />;
             case 'download-video':
                 return <DownloadVideo />;
-            case 'sheet-note':
-                return <SheetNote theme={theme} />;
             default:
-                return <AutoCopy />;
+                return activeTab === 'sheet-note' ? null : <AutoCopy />;
         }
     };
+
+    const sheetVisible = activeTab === 'sheet-note';
 
     return (
         <>
@@ -85,8 +88,22 @@ export default function App() {
                         </button>
                         <span className="mobile-title">Auto Copy</span>
                     </div>
-                    <div className={`content-wrapper${activeTab === 'sheet-note' ? ' content-wrapper--sheet' : ''}`}>
-                        {renderContent()}
+                    <div className={`content-wrapper${sheetVisible ? ' content-wrapper--sheet' : ''}`}>
+                        <div className="content-panels">
+                            {!sheetVisible && (
+                                <div className="content-panel content-panel--active">
+                                    {renderOtherContent()}
+                                </div>
+                            )}
+                            {sheetMounted && (
+                                <div
+                                    className={`content-panel content-panel--sheet${sheetVisible ? ' content-panel--active' : ' content-panel--parked'}`}
+                                    aria-hidden={!sheetVisible}
+                                >
+                                    <SheetNote theme={theme} visible={sheetVisible} />
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </main>
             </div>

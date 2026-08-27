@@ -47,19 +47,29 @@ const ytDlpRoots = [
   process.resourcesPath ? join(process.resourcesPath, "app.asar.unpacked") : "",
   process.resourcesPath || "",
 ].filter(Boolean);
-const ytDlpCandidates = ytDlpRoots.map((root) =>
-  join(root, "node_modules", "youtube-dl-exec", "bin", ytDlpName),
-);
-if (ytdlpFromPackage) {
-  ytDlpCandidates.push(ytdlpFromPackage);
-  ytDlpCandidates.push(ytdlpFromPackage.replace("app.asar", "app.asar.unpacked"));
+
+function collectYtDlpCandidates() {
+  const names = isWin ? ["yt-dlp.exe", "yt-dlp"] : ["yt-dlp", "yt-dlp.exe"];
+  const list = [];
+  for (const root of ytDlpRoots) {
+    for (const name of names) {
+      list.push(join(root, "node_modules", "youtube-dl-exec", "bin", name));
+    }
+  }
+  if (ytdlpFromPackage) {
+    list.push(ytdlpFromPackage);
+    list.push(ytdlpFromPackage.replace("app.asar", "app.asar.unpacked"));
+  }
+  if (ytdlpPackageDir) {
+    for (const name of names) list.push(join(ytdlpPackageDir, "bin", name));
+  }
+  if (unpackedPackageDir) {
+    for (const name of names) list.push(join(unpackedPackageDir, "bin", name));
+  }
+  return [...new Set(list)];
 }
-if (ytdlpPackageDir) {
-  ytDlpCandidates.push(join(ytdlpPackageDir, "bin", ytDlpName));
-}
-if (unpackedPackageDir) {
-  ytDlpCandidates.push(join(unpackedPackageDir, "bin", ytDlpName));
-}
+
+const ytDlpCandidates = collectYtDlpCandidates();
 
 function resolveYtDlpCommand() {
   const preferred = ytDlpCandidates
@@ -68,7 +78,7 @@ function resolveYtDlpCommand() {
   if (preferred) return preferred;
 
   const found = ytDlpCandidates
-    .filter((candidate) => !candidate.includes("app.asar"))
+    .filter((candidate) => !candidate.includes("app.asar") || candidate.includes("app.asar.unpacked"))
     .find((candidate) => existsSync(candidate));
   if (found) return found;
 
@@ -77,7 +87,7 @@ function resolveYtDlpCommand() {
     .find((candidate) => existsSync(candidate));
   if (asarFallback) return asarFallback;
 
-  return "yt-dlp";
+  return isWin ? "yt-dlp.exe" : "yt-dlp";
 }
 
 function formatBytes(bytes) {
@@ -300,7 +310,117 @@ function pickCaptionTrack(info, preferredLang = "auto") {
   return null;
 }
 
-async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto") {
+const YT_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+
+function pickPlayerCaptionTrack(tracks, preferredLang = "auto") {
+  if (!Array.isArray(tracks) || !tracks.length) return null;
+  const preferred = String(preferredLang || "auto").toLowerCase();
+  const langPriorityByPref = {
+    vi: ["vi", "vi-VN", "en", "en-US"],
+    en: ["en", "en-US", "vi", "vi-VN"],
+    auto: ["vi", "vi-VN", "en", "en-US"],
+  };
+  const langPriority = langPriorityByPref[preferred] || langPriorityByPref.auto;
+
+  const score = (track) => {
+    const code = String(track?.languageCode || "").toLowerCase();
+    const idx = langPriority.findIndex(
+      (lang) => code === lang.toLowerCase() || code.startsWith(`${lang.toLowerCase()}-`),
+    );
+    const langScore = idx >= 0 ? langPriority.length - idx : 0;
+    const manualBonus = track?.kind === "asr" ? 0 : 10;
+    return langScore * 10 + manualBonus;
+  };
+
+  const sorted = [...tracks].sort((a, b) => score(b) - score(a));
+  const best = sorted[0];
+  if (!best?.baseUrl) return null;
+  return {
+    url: `${best.baseUrl}${best.baseUrl.includes("fmt=") ? "" : "&fmt=json3"}`,
+    lang: best.languageCode || "",
+    kind: best.kind === "asr" ? "automatic" : "subtitles",
+    ext: "json3",
+  };
+}
+
+function extractYtInitialPlayerResponse(html) {
+  const source = String(html || "");
+  const marker = "ytInitialPlayerResponse";
+  const start = source.indexOf(marker);
+  if (start < 0) return null;
+  const brace = source.indexOf("{", start);
+  if (brace < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = brace; i < source.length; i += 1) {
+    const ch = source[i];
+    if (inString) {
+      if (escape) escape = false;
+      else if (ch === "\\") escape = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        try {
+          return JSON.parse(source.slice(brace, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchTranscriptViaPlayer(videoId, preferredLang = "auto") {
+  const watchRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
+    headers: {
+      "user-agent": YT_UA,
+      "accept-language": "en-US,en;q=0.9,vi;q=0.8",
+    },
+  });
+  if (!watchRes.ok) {
+    throw new Error(`watch page failed with status ${watchRes.status}`);
+  }
+  const html = await watchRes.text();
+  const player = extractYtInitialPlayerResponse(html);
+  const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const picked = pickPlayerCaptionTrack(tracks, preferredLang);
+  if (!picked?.url) {
+    return { lines: [], lang: "", kind: "" };
+  }
+
+  const transcriptRes = await fetch(picked.url, {
+    headers: { "user-agent": YT_UA },
+  });
+  if (!transcriptRes.ok) {
+    throw new Error(`player transcript fetch failed with status ${transcriptRes.status}`);
+  }
+  const contentType = transcriptRes.headers.get("content-type") || "";
+  const payloadText = await transcriptRes.text();
+  let lines = [];
+  if (contentType.includes("json") || payloadText.trim().startsWith("{")) {
+    try {
+      lines = parseJson3Transcript(JSON.parse(payloadText));
+    } catch {
+      lines = parseVttTranscript(payloadText);
+    }
+  } else {
+    lines = parseVttTranscript(payloadText);
+  }
+  return { lines, lang: picked.lang || "", kind: picked.kind || "player" };
+}
+
+async function fetchTranscriptViaYtDlp(videoId, cookieArgs, preferredLang = "auto") {
   const info = await runYtDlpJson(videoId, cookieArgs);
   const track = pickCaptionTrack(info, preferredLang);
   if (!track?.url) {
@@ -308,10 +428,7 @@ async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto")
   }
 
   const transcriptRes = await fetch(track.url, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    },
+    headers: { "user-agent": YT_UA },
   });
   if (!transcriptRes.ok) {
     throw new Error(`transcript fetch failed with status ${transcriptRes.status}`);
@@ -324,6 +441,23 @@ async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto")
     ? parseJson3Transcript(await transcriptRes.json())
     : parseVttTranscript(await transcriptRes.text());
   return { lines, lang: track.lang || "", kind: track.kind || "" };
+}
+
+async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto") {
+  // Ưu tiên scrape player (không cần yt-dlp) — ổn định hơn trên bản zip Windows
+  try {
+    const viaPlayer = await fetchTranscriptViaPlayer(videoId, preferredLang);
+    if (viaPlayer.lines.length) return viaPlayer;
+  } catch (err) {
+    console.warn("transcript player fallback failed:", err?.message || err);
+  }
+
+  try {
+    return await fetchTranscriptViaYtDlp(videoId, cookieArgs, preferredLang);
+  } catch (err) {
+    console.warn("transcript yt-dlp failed:", err?.message || err);
+    throw err;
+  }
 }
 
 async function getNoembedInfo(videoId) {

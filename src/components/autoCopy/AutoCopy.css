@@ -134,6 +134,9 @@
     justify-content: center;
     width: 32px;
     height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 32px;
     border-radius: 8px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -141,22 +144,22 @@
     font-size: 1.2rem;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
     flex-shrink: 0;
     padding: 0;
-    min-width: auto;
+    line-height: 1;
 }
 
 .autocopy-tab-add:hover {
     background: var(--btn-edit);
     border-color: var(--btn-edit);
     color: #ffffff;
-    transform: rotate(90deg) scale(1.05);
+    transform: scale(1.08);
     box-shadow: 0 3px 8px color-mix(in srgb, var(--btn-edit) 30%, transparent);
 }
 
 .autocopy-tab-add:active {
-    transform: rotate(90deg) scale(0.95);
+    transform: scale(0.95);
 }
 
 /* ===== AutoCopy Parent Container ===== */

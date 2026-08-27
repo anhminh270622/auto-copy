@@ -77,6 +77,17 @@ export const isFortuneSheetArray = (data) =>
 export const createEmptyWorkbook = (workbookId, title = 'Workbook') => ({
     id: workbookId,
     name: title,
+    sheetOrder: ['sheet-0'],
+    sheets: {
+        'sheet-0': {
+            id: 'sheet-0',
+            name: 'Sheet1',
+            cellData: {},
+            rowCount: DEFAULT_ROW_COUNT,
+            columnCount: DEFAULT_COL_COUNT,
+        },
+    },
+    styles: {},
 });
 
 export const fortuneSheetsToUniver = (sheets, workbookId, title = 'Workbook') => {
@@ -341,8 +352,14 @@ export const loadSavedFiles = () => {
 export const persistFiles = (files) => {
     try {
         localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(files));
+        return true;
     } catch (error) {
         console.error('Lỗi khi lưu sheet:', error);
+        const isQuota = error?.name === 'QuotaExceededError' || /quota/i.test(String(error?.message || ''));
+        if (isQuota) {
+            alert('Không lưu được sheet: bộ nhớ trình duyệt đầy. Hãy xóa bớt dữ liệu hoặc xuất Excel rồi Xóa sạch.');
+        }
+        return false;
     }
 };
 

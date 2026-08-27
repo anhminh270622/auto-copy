@@ -18,9 +18,10 @@ async function getTranscriptWithFallback(videoId, preferredLang = "auto") {
         params.set("lang", preferredLang);
     }
     const query = params.toString();
+    // Electron packaged: ưu tiên API local; dev: thử Vite proxy trước
     const urls = [
-        `/api/transcript?${query}`,
         API_BASE ? `${API_BASE}/api/transcript?${query}` : "",
+        `/api/transcript?${query}`,
     ].filter(Boolean);
     let lastMessage = "";
 

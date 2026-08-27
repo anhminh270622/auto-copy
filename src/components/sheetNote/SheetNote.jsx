@@ -8,11 +8,14 @@ import { UniverSheetsConditionalFormattingPreset } from '@univerjs/preset-sheets
 import UniverPresetSheetsConditionalFormattingViVN from '@univerjs/preset-sheets-conditional-formatting/locales/vi-VN';
 import { UniverSheetsFilterPreset } from '@univerjs/preset-sheets-filter';
 import UniverPresetSheetsFilterViVN from '@univerjs/preset-sheets-filter/locales/vi-VN';
+import { UniverSheetsFindReplacePreset } from '@univerjs/preset-sheets-find-replace';
+import UniverPresetSheetsFindReplaceViVN from '@univerjs/preset-sheets-find-replace/locales/vi-VN';
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import '@univerjs/preset-sheets-core/lib/index.css';
 import '@univerjs/preset-sheets-data-validation/lib/index.css';
 import '@univerjs/preset-sheets-conditional-formatting/lib/index.css';
 import '@univerjs/preset-sheets-filter/lib/index.css';
+import '@univerjs/preset-sheets-find-replace/lib/index.css';
 import './SheetNote.css';
 import {
     COL_PADDING,
@@ -31,13 +34,14 @@ import {
     univerWorkbookToExportSheets,
 } from './univerHelpers';
 
-function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
+function UniverWrapper({ file, onDataChange, onApiReady, darkMode, visible = true }) {
     const containerRef = useRef(null);
     const readyRef = useRef(false);
     const onDataChangeRef = useRef(onDataChange);
     const onApiReadyRef = useRef(onApiReady);
     const univerApiRef = useRef(null);
     const darkModeRef = useRef(darkMode);
+    const viewStateRef = useRef(null); // { sheetId, row, col, scroll }
 
     useEffect(() => {
         onDataChangeRef.current = onDataChange;
@@ -56,6 +60,69 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
         return () => cancelAnimationFrame(t);
     }, [darkMode]);
 
+    // Khi ẩn menu khác / hiện lại: lưu & khôi phục ô đang chọn + scroll
+    useEffect(() => {
+        const api = univerApiRef.current;
+        const fWorkbook = api?.getActiveWorkbook?.() || null;
+
+        const captureView = () => {
+            try {
+                const sheet = fWorkbook?.getActiveSheet?.();
+                if (!sheet) return;
+                const range = sheet.getSelection()?.getActiveRange?.()?.getRange?.();
+                const scroll = sheet.getScrollState?.();
+                viewStateRef.current = {
+                    sheetId: sheet.getSheetId?.(),
+                    row: range?.startRow ?? 0,
+                    col: range?.startColumn ?? 0,
+                    scroll: scroll || null,
+                };
+            } catch {
+                /* ignore */
+            }
+        };
+
+        const restoreView = () => {
+            const saved = viewStateRef.current;
+            const sheet = fWorkbook?.getActiveSheet?.();
+            if (!sheet) return;
+            try {
+                if (saved?.sheetId && fWorkbook?.getSheetBySheetId) {
+                    const target = fWorkbook.getSheetBySheetId(saved.sheetId);
+                    if (target && target.getSheetId?.() !== sheet.getSheetId?.()) {
+                        fWorkbook.setActiveSheet?.(target);
+                    }
+                }
+                const active = fWorkbook?.getActiveSheet?.() || sheet;
+                const row = saved?.row ?? 0;
+                const col = saved?.col ?? 0;
+                active.getRange?.(row, col)?.activate?.();
+                active.scrollToCell?.(row, col, 0);
+            } catch {
+                /* ignore */
+            }
+            [50, 200, 450].forEach((ms) => {
+                setTimeout(() => window.dispatchEvent(new Event('resize')), ms);
+            });
+        };
+
+        if (!visible) {
+            captureView();
+            return undefined;
+        }
+
+        // Chỉ restore khi đã từng ẩn (có snapshot) — tránh nhảy về A1 lúc mount lần đầu
+        if (!viewStateRef.current) {
+            [50, 200, 450].forEach((ms) => {
+                setTimeout(() => window.dispatchEvent(new Event('resize')), ms);
+            });
+            return undefined;
+        }
+
+        const t = requestAnimationFrame(() => restoreView());
+        return () => cancelAnimationFrame(t);
+    }, [visible]);
+
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return undefined;
@@ -71,6 +138,7 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
                     UniverPresetSheetsDataValidationViVN,
                     UniverPresetSheetsConditionalFormattingViVN,
                     UniverPresetSheetsFilterViVN,
+                    UniverPresetSheetsFindReplaceViVN,
                 ),
             },
             presets: [
@@ -89,6 +157,7 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
                 UniverSheetsDataValidationPreset(),
                 UniverSheetsConditionalFormattingPreset(),
                 UniverSheetsFilterPreset(),
+                UniverSheetsFindReplacePreset(),
             ],
         });
 
@@ -96,9 +165,11 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
         univerAPI.toggleDarkMode?.(Boolean(darkModeRef.current));
         document.documentElement.classList.toggle('univer-dark', Boolean(darkModeRef.current));
 
+        // Snapshot từ prop file (đã sync qua filesRef trước remount)
         const workbookData = file.workbook || createEmptyWorkbook(file.id, file.title);
         const fWorkbook = univerAPI.createWorkbook(workbookData);
         onApiReadyRef.current?.(file.id, { univerAPI, fWorkbook });
+
 
         const readyTimer = setTimeout(() => {
             readyRef.current = true;
@@ -159,10 +230,13 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
             }
             onApiReadyRef.current?.(file.id, null);
             univerApiRef.current = null;
-            document.documentElement.classList.remove('univer-dark');
+            // Chỉ gỡ univer-dark nếu app không đang dark (tránh nháy theme khi đổi tab file)
+            if (!darkModeRef.current) {
+                document.documentElement.classList.remove('univer-dark');
+            }
             univer.dispose();
         };
-    }, [file.id, file.title]);
+    }, [file.id]);
 
     return (
         <div className="sheet-container">
@@ -171,7 +245,7 @@ function UniverWrapper({ file, onDataChange, onApiReady, darkMode }) {
     );
 }
 
-export default function SheetNote({ theme = 'light' }) {
+export default function SheetNote({ theme = 'light', visible = true }) {
     const [files, setFiles] = useState(() => {
         const saved = loadSavedFiles();
         if (saved?.length) return saved;
@@ -313,6 +387,13 @@ export default function SheetNote({ theme = 'light' }) {
             return;
         }
 
+        // Xóa rule CF cũ trên vùng này trước — tránh chồng màu khi bấm lại
+        try {
+            activeRange.clearConditionalFormatRules?.();
+        } catch {
+            /* ignore */
+        }
+
         const rule = univerAPI.newDataValidation()
             .requireValueInList(STATUS_OPTIONS, false, true)
             .setOptions({
@@ -386,11 +467,19 @@ export default function SheetNote({ theme = 'light' }) {
         }
 
         const wb = XLSX.utils.book_new();
+        const usedNames = new Set();
         exportSheets.forEach((sheet, index) => {
             const ws = XLSX.utils.aoa_to_sheet(sheet.data);
-            let sheetName = sheet.name || `Sheet${index + 1}`;
-            if (sheetName.length > 31) sheetName = sheetName.substring(0, 31);
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            let sheetName = (sheet.name || `Sheet${index + 1}`).substring(0, 31) || `Sheet${index + 1}`;
+            let unique = sheetName;
+            let n = 2;
+            while (usedNames.has(unique.toLowerCase())) {
+                const suffix = ` (${n})`;
+                unique = `${sheetName.substring(0, Math.max(1, 31 - suffix.length))}${suffix}`;
+                n += 1;
+            }
+            usedNames.add(unique.toLowerCase());
+            XLSX.utils.book_append_sheet(wb, ws, unique);
         });
 
         if (window.electronApp?.saveFileBase64) {
@@ -472,6 +561,7 @@ export default function SheetNote({ theme = 'light' }) {
                     onDataChange={handleDataChange}
                     onApiReady={handleApiReady}
                     darkMode={theme === 'dark'}
+                    visible={visible}
                 />
             )}
         </div>

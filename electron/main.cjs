@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { app, BrowserWindow, clipboard, ipcMain, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, clipboard, ipcMain, nativeImage, dialog, Menu } = require("electron");
 const fs = require("node:fs");
 const { autoUpdater } = require("electron-updater");
 
@@ -17,6 +17,9 @@ async function startEmbeddedApi() {
 }
 
 function createWindow() {
+  // Bỏ menu Edit/Find mặc định để Ctrl+F/H vào sheet (Univer Find & Replace)
+  Menu.setApplicationMenu(null);
+
   const win = new BrowserWindow({
     width: 1260,
     height: 860,
