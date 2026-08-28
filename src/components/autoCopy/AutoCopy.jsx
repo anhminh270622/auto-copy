@@ -18,12 +18,32 @@ async function getTranscriptWithFallback(videoId, preferredLang = "auto") {
         params.set("lang", preferredLang);
     }
     const query = params.toString();
-    // Electron packaged: ưu tiên API local; dev: thử Vite proxy trước
+    let lastMessage = "";
+
+    // Electron (đặc biệt bản zip Windows): gọi IPC main process — ổn định hơn fetch localhost
+    if (typeof window !== "undefined" && window.electronApp?.getTranscript) {
+        try {
+            const data = await window.electronApp.getTranscript(videoId, preferredLang);
+            if (data?.transcript) {
+                return {
+                    transcript: data.transcript,
+                    message: "",
+                    language: data.language || "",
+                    source: data.source || "",
+                };
+            }
+            if (data?.message) {
+                lastMessage = data.detail ? `${data.message} (${data.detail})` : data.message;
+            }
+        } catch {
+            lastMessage = "Không thể kết nối API bản chép lời (IPC).";
+        }
+    }
+
     const urls = [
-        API_BASE ? `${API_BASE}/api/transcript?${query}` : "",
+        API_BASE ? `${API_BASE}/api/transcript?${query}&debug=1` : "",
         `/api/transcript?${query}`,
     ].filter(Boolean);
-    let lastMessage = "";
 
     for (const url of urls) {
         try {

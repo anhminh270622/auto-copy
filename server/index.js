@@ -8,6 +8,10 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import {
+  fetchTranscriptViaInnertube,
+  parseTimedtextPayload,
+} from "./youtubeTranscript.js";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8787);
@@ -200,77 +204,6 @@ function hasPlayableFormats(formats) {
   });
 }
 
-function formatTranscriptTime(totalSeconds) {
-  const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function decodeHtmlEntities(input) {
-  return String(input || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
-}
-
-function cleanTranscriptText(input) {
-  return decodeHtmlEntities(input)
-    .replace(/<[^>]*>/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseVttTranscript(rawText) {
-  const lines = String(rawText || "").split(/\r?\n/);
-  const items = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i].trim();
-    if (!line.includes("-->")) continue;
-    const [start] = line.split("-->");
-    const parts = start.trim().split(":").map((x) => Number(x.replace(",", ".")));
-    let seconds = 0;
-    if (parts.length === 3) {
-      seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-    } else if (parts.length === 2) {
-      seconds = parts[0] * 60 + parts[1];
-    } else {
-      continue;
-    }
-    const textParts = [];
-    for (let j = i + 1; j < lines.length; j += 1) {
-      const t = lines[j];
-      if (!t.trim()) break;
-      textParts.push(t.trim());
-    }
-    const text = cleanTranscriptText(textParts.join(" "));
-    if (!text) continue;
-    items.push({ time: formatTranscriptTime(seconds), text });
-  }
-  return items;
-}
-
-function parseJson3Transcript(payload) {
-  const events = Array.isArray(payload?.events) ? payload.events : [];
-  const items = [];
-  for (const event of events) {
-    const startMs = Number(event?.tStartMs);
-    if (!Number.isFinite(startMs)) continue;
-    const segs = Array.isArray(event?.segs) ? event.segs : [];
-    const text = cleanTranscriptText(segs.map((seg) => seg?.utf8 || "").join(""));
-    if (!text) continue;
-    items.push({
-      time: formatTranscriptTime(startMs / 1000),
-      text,
-    });
-  }
-  return items;
-}
-
 function pickCaptionTrack(info, preferredLang = "auto") {
   const pools = [
     { kind: "subtitles", tracks: info?.subtitles || {} },
@@ -313,113 +246,6 @@ function pickCaptionTrack(info, preferredLang = "auto") {
 const YT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
-function pickPlayerCaptionTrack(tracks, preferredLang = "auto") {
-  if (!Array.isArray(tracks) || !tracks.length) return null;
-  const preferred = String(preferredLang || "auto").toLowerCase();
-  const langPriorityByPref = {
-    vi: ["vi", "vi-VN", "en", "en-US"],
-    en: ["en", "en-US", "vi", "vi-VN"],
-    auto: ["vi", "vi-VN", "en", "en-US"],
-  };
-  const langPriority = langPriorityByPref[preferred] || langPriorityByPref.auto;
-
-  const score = (track) => {
-    const code = String(track?.languageCode || "").toLowerCase();
-    const idx = langPriority.findIndex(
-      (lang) => code === lang.toLowerCase() || code.startsWith(`${lang.toLowerCase()}-`),
-    );
-    const langScore = idx >= 0 ? langPriority.length - idx : 0;
-    const manualBonus = track?.kind === "asr" ? 0 : 10;
-    return langScore * 10 + manualBonus;
-  };
-
-  const sorted = [...tracks].sort((a, b) => score(b) - score(a));
-  const best = sorted[0];
-  if (!best?.baseUrl) return null;
-  return {
-    url: `${best.baseUrl}${best.baseUrl.includes("fmt=") ? "" : "&fmt=json3"}`,
-    lang: best.languageCode || "",
-    kind: best.kind === "asr" ? "automatic" : "subtitles",
-    ext: "json3",
-  };
-}
-
-function extractYtInitialPlayerResponse(html) {
-  const source = String(html || "");
-  const marker = "ytInitialPlayerResponse";
-  const start = source.indexOf(marker);
-  if (start < 0) return null;
-  const brace = source.indexOf("{", start);
-  if (brace < 0) return null;
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  for (let i = brace; i < source.length; i += 1) {
-    const ch = source[i];
-    if (inString) {
-      if (escape) escape = false;
-      else if (ch === "\\") escape = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-    if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) {
-        try {
-          return JSON.parse(source.slice(brace, i + 1));
-        } catch {
-          return null;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-async function fetchTranscriptViaPlayer(videoId, preferredLang = "auto") {
-  const watchRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
-    headers: {
-      "user-agent": YT_UA,
-      "accept-language": "en-US,en;q=0.9,vi;q=0.8",
-    },
-  });
-  if (!watchRes.ok) {
-    throw new Error(`watch page failed with status ${watchRes.status}`);
-  }
-  const html = await watchRes.text();
-  const player = extractYtInitialPlayerResponse(html);
-  const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-  const picked = pickPlayerCaptionTrack(tracks, preferredLang);
-  if (!picked?.url) {
-    return { lines: [], lang: "", kind: "" };
-  }
-
-  const transcriptRes = await fetch(picked.url, {
-    headers: { "user-agent": YT_UA },
-  });
-  if (!transcriptRes.ok) {
-    throw new Error(`player transcript fetch failed with status ${transcriptRes.status}`);
-  }
-  const contentType = transcriptRes.headers.get("content-type") || "";
-  const payloadText = await transcriptRes.text();
-  let lines = [];
-  if (contentType.includes("json") || payloadText.trim().startsWith("{")) {
-    try {
-      lines = parseJson3Transcript(JSON.parse(payloadText));
-    } catch {
-      lines = parseVttTranscript(payloadText);
-    }
-  } else {
-    lines = parseVttTranscript(payloadText);
-  }
-  return { lines, lang: picked.lang || "", kind: picked.kind || "player" };
-}
-
 async function fetchTranscriptViaYtDlp(videoId, cookieArgs, preferredLang = "auto") {
   const info = await runYtDlpJson(videoId, cookieArgs);
   const track = pickCaptionTrack(info, preferredLang);
@@ -434,22 +260,24 @@ async function fetchTranscriptViaYtDlp(videoId, cookieArgs, preferredLang = "aut
     throw new Error(`transcript fetch failed with status ${transcriptRes.status}`);
   }
 
-  const isJson =
-    String(track.ext || "").toLowerCase() === "json3" ||
-    (transcriptRes.headers.get("content-type") || "").includes("application/json");
-  const lines = isJson
-    ? parseJson3Transcript(await transcriptRes.json())
-    : parseVttTranscript(await transcriptRes.text());
+  const payloadText = await transcriptRes.text();
+  if (!payloadText.trim()) {
+    return { lines: [], lang: track.lang || "", kind: track.kind || "" };
+  }
+  const lines = parseTimedtextPayload(
+    payloadText,
+    transcriptRes.headers.get("content-type") || "",
+  );
   return { lines, lang: track.lang || "", kind: track.kind || "" };
 }
 
 async function fetchTranscriptLines(videoId, cookieArgs, preferredLang = "auto") {
-  // Ưu tiên scrape player (không cần yt-dlp) — ổn định hơn trên bản zip Windows
+  // Innertube IOS/ANDROID — không cần yt-dlp, tránh empty timedtext (PoToken) của WEB
   try {
-    const viaPlayer = await fetchTranscriptViaPlayer(videoId, preferredLang);
-    if (viaPlayer.lines.length) return viaPlayer;
+    const viaInnertube = await fetchTranscriptViaInnertube(videoId, preferredLang);
+    if (viaInnertube.lines.length) return viaInnertube;
   } catch (err) {
-    console.warn("transcript player fallback failed:", err?.message || err);
+    console.warn("transcript innertube failed:", err?.message || err);
   }
 
   try {
@@ -678,6 +506,46 @@ app.get("/api/download", async (req, res) => {
   }
 });
 
+function transcriptEmptyMessage(lang) {
+  if (lang === "en") return "Không tìm thấy bản chép lời tiếng Anh cho video này.";
+  if (lang === "vi") return "Không tìm thấy bản chép lời tiếng Việt cho video này.";
+  return "Không tìm thấy bản chép lời cho video này.";
+}
+
+export async function fetchTranscriptForVideo(videoId, lang = "auto", debug = false) {
+  const preferredLang = String(lang || "auto").toLowerCase();
+  try {
+    const { cookieArgs } = await getCookieArgs();
+    const result = await fetchTranscriptLines(videoId, cookieArgs, preferredLang);
+    if (!result.lines.length) {
+      return {
+        transcript: "",
+        lines: [],
+        message: transcriptEmptyMessage(preferredLang),
+        language: "",
+        source: "",
+      };
+    }
+    return {
+      transcript: result.lines.map((line) => `${line.time} ${line.text}`).join("\n"),
+      lines: result.lines,
+      language: result.lang,
+      source: result.kind,
+      message: "",
+    };
+  } catch (err) {
+    const message = String(err?.message || "");
+    return {
+      transcript: "",
+      lines: [],
+      message: "Không thể lấy bản chép lời cho video này.",
+      language: "",
+      source: "",
+      ...(debug ? { detail: message.slice(0, 800) } : {}),
+    };
+  }
+}
+
 app.get("/api/transcript", async (req, res) => {
   const videoId = req.query.v;
   const lang = String(req.query.lang || "auto").toLowerCase();
@@ -686,36 +554,8 @@ app.get("/api/transcript", async (req, res) => {
     return res.status(400).json({ error: "Missing video ID" });
   }
 
-  try {
-    const { cookieArgs } = await getCookieArgs();
-    const result = await fetchTranscriptLines(videoId, cookieArgs, lang);
-    if (!result.lines.length) {
-      return res.status(200).json({
-        transcript: "",
-        lines: [],
-        message:
-          lang === "en"
-            ? "Không tìm thấy bản chép lời tiếng Anh cho video này."
-            : lang === "vi"
-              ? "Không tìm thấy bản chép lời tiếng Việt cho video này."
-              : "Không tìm thấy bản chép lời cho video này.",
-      });
-    }
-    return res.status(200).json({
-      transcript: result.lines.map((line) => `${line.time} ${line.text}`).join("\n"),
-      lines: result.lines,
-      language: result.lang,
-      source: result.kind,
-    });
-  } catch (err) {
-    const message = String(err?.message || "");
-    return res.status(200).json({
-      transcript: "",
-      lines: [],
-      message: "Không thể lấy bản chép lời cho video này.",
-      ...(debug ? { detail: message.slice(0, 800) } : {}),
-    });
-  }
+  const payload = await fetchTranscriptForVideo(videoId, lang, debug);
+  return res.status(200).json(payload);
 });
 
 app.get("/api/thumbnail", async (req, res) => {

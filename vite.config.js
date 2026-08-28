@@ -2,6 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { spawn } from 'child_process'
 import { join } from 'path'
+import {
+    fetchTranscriptViaInnertube,
+    parseTimedtextPayload,
+} from './server/youtubeTranscript.js'
 
 function formatBytes(bytes) {
     if (!bytes || isNaN(bytes)) return 'N/A'
@@ -17,77 +21,6 @@ function formatDuration(seconds) {
     const s = seconds % 60
     if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
     return `${m}:${String(s).padStart(2, '0')}`
-}
-
-function formatTranscriptTime(totalSeconds) {
-    const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0))
-    const h = Math.floor(sec / 3600)
-    const m = Math.floor((sec % 3600) / 60)
-    const s = sec % 60
-    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-    return `${m}:${String(s).padStart(2, '0')}`
-}
-
-function decodeHtmlEntities(input) {
-    return String(input || '')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-}
-
-function cleanTranscriptText(input) {
-    return decodeHtmlEntities(input)
-        .replace(/<[^>]*>/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-}
-
-function parseVttTranscript(rawText) {
-    const lines = String(rawText || '').split(/\r?\n/)
-    const items = []
-    for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i].trim()
-        if (!line.includes('-->')) continue
-        const [start] = line.split('-->')
-        const parts = start.trim().split(':').map((x) => Number(x.replace(',', '.')))
-        let seconds = 0
-        if (parts.length === 3) {
-            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2]
-        } else if (parts.length === 2) {
-            seconds = parts[0] * 60 + parts[1]
-        } else {
-            continue
-        }
-        const textParts = []
-        for (let j = i + 1; j < lines.length; j += 1) {
-            const t = lines[j]
-            if (!t.trim()) break
-            textParts.push(t.trim())
-        }
-        const text = cleanTranscriptText(textParts.join(' '))
-        if (!text) continue
-        items.push({ time: formatTranscriptTime(seconds), text })
-    }
-    return items
-}
-
-function parseJson3Transcript(payload) {
-    const events = Array.isArray(payload?.events) ? payload.events : []
-    const items = []
-    for (const event of events) {
-        const startMs = Number(event?.tStartMs)
-        if (!Number.isFinite(startMs)) continue
-        const segs = Array.isArray(event?.segs) ? event.segs : []
-        const text = cleanTranscriptText(segs.map((seg) => seg?.utf8 || '').join(''))
-        if (!text) continue
-        items.push({
-            time: formatTranscriptTime(startMs / 1000),
-            text,
-        })
-    }
-    return items
 }
 
 function pickCaptionTrack(info, preferredLang = 'auto') {
@@ -304,6 +237,33 @@ function downloadPlugin() {
                             return
                         }
 
+                        const emptyMessage =
+                            lang === 'en'
+                                ? 'Không tìm thấy bản chép lời tiếng Anh cho video này.'
+                                : lang === 'vi'
+                                  ? 'Không tìm thấy bản chép lời tiếng Việt cho video này.'
+                                  : 'Không tìm thấy bản chép lời.'
+
+                        try {
+                            const viaInnertube = await fetchTranscriptViaInnertube(videoId, lang)
+                            if (viaInnertube.lines.length) {
+                                res.writeHead(200, { 'Content-Type': 'application/json' })
+                                res.end(
+                                    JSON.stringify({
+                                        transcript: viaInnertube.lines
+                                            .map((line) => `${line.time} ${line.text}`)
+                                            .join('\n'),
+                                        lines: viaInnertube.lines,
+                                        language: viaInnertube.lang || '',
+                                        source: viaInnertube.kind || '',
+                                    }),
+                                )
+                                return
+                            }
+                        } catch (err) {
+                            console.warn('transcript innertube failed:', err?.message || err)
+                        }
+
                         const youtubedl = (await import('youtube-dl-exec')).default
                         let info
                         try {
@@ -328,13 +288,7 @@ function downloadPlugin() {
                         const track = pickCaptionTrack(info, lang)
                         if (!track?.url) {
                             res.writeHead(200, { 'Content-Type': 'application/json' })
-                            const message =
-                                lang === 'en'
-                                    ? 'Không tìm thấy bản chép lời tiếng Anh cho video này.'
-                                    : lang === 'vi'
-                                      ? 'Không tìm thấy bản chép lời tiếng Việt cho video này.'
-                                      : 'Không tìm thấy bản chép lời.'
-                            res.end(JSON.stringify({ transcript: '', lines: [], message }))
+                            res.end(JSON.stringify({ transcript: '', lines: [], message: emptyMessage }))
                             return
                         }
 
@@ -351,12 +305,11 @@ function downloadPlugin() {
                             return
                         }
 
-                        const isJson =
-                            String(track.ext || '').toLowerCase() === 'json3' ||
-                            (transcriptRes.headers.get('content-type') || '').includes('application/json')
-                        const lines = isJson
-                            ? parseJson3Transcript(await transcriptRes.json())
-                            : parseVttTranscript(await transcriptRes.text())
+                        const payloadText = await transcriptRes.text()
+                        const lines = parseTimedtextPayload(
+                            payloadText,
+                            transcriptRes.headers.get('content-type') || '',
+                        )
                         res.writeHead(200, { 'Content-Type': 'application/json' })
                         res.end(
                             JSON.stringify({
@@ -364,6 +317,7 @@ function downloadPlugin() {
                                 lines,
                                 language: track.lang || '',
                                 source: track.kind || '',
+                                ...(lines.length ? {} : { message: emptyMessage }),
                             }),
                         )
                         return

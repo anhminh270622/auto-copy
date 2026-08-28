@@ -1,7 +1,7 @@
 {
   "name": "du-an",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.4",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -99,7 +99,7 @@
     "win": {
       "signAndEditExecutable": false,
       "target": [
-        "nsis"
+        "zip"
       ]
     },
     "nsis": {
